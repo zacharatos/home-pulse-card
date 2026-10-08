@@ -5,30 +5,36 @@ import { css } from "lit";
 // Shortcuts are the main feature. Paddings and radii match Area Pulse Card so the two line up.
 export const cardStyles = css`
   :host {
-    --hpc-accent: var(--primary-color);
-    --hpc-amber: var(--amber-color, #ffc107);
-    --hpc-orange: var(--orange-color, #ff9800);
+    /* Every variable reads the shared Pulse token first (set by the Pulse theme), then Home Assistant's
+       own variable, then the value this card always used. Without the Pulse theme nothing changes. */
+    --hpc-accent: var(--pulse-accent, var(--primary-color));
+    /* Colours with a meaning: on (lights), needs a look, problem, all good, information. */
+    --hpc-amber: var(--pulse-active, var(--amber-color, #ffc107));
+    --hpc-orange: var(--pulse-warn, var(--orange-color, #ff9800));
+    --hpc-red: var(--pulse-bad, var(--red-color, #f44336));
+    --hpc-green: var(--pulse-ok, var(--green-color, #4caf50));
+    --hpc-blue: var(--pulse-info, var(--blue-color, #2196f3));
+    /* Category colours: Home Assistant's palette (the Pulse theme mutes it). */
     --hpc-deep-orange: var(--deep-orange-color, #ff6f22);
-    --hpc-red: var(--red-color, #f44336);
-    --hpc-green: var(--green-color, #4caf50);
-    --hpc-blue: var(--blue-color, #2196f3);
     --hpc-light-blue: var(--light-blue-color, #03a9f4);
     --hpc-cyan: var(--cyan-color, #00bcd4);
     --hpc-teal: var(--teal-color, #009688);
     --hpc-indigo: var(--indigo-color, #3f51b5);
     --hpc-purple: var(--purple-color, #926bc7);
     /* Surfaces: the same two neutral steps Area Pulse uses. */
-    --hpc-neutral-bg: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-    --hpc-neutral-bg-hover: color-mix(in srgb, var(--primary-text-color) 9%, transparent);
-    --hpc-neutral-strong: color-mix(in srgb, var(--primary-text-color) 14%, transparent);
-    --hpc-radius: var(--ha-card-border-radius, 12px);
-    --hpc-control-radius: var(--ha-card-features-border-radius, var(--feature-border-radius, 12px));
-    --hpc-gap: 14px;
-    /* Corner glow: warm sun by day, cool moon by night. Override per theme if you like. */
-    --hpc-glow-day: var(--hpc-orange);
-    --hpc-glow-night: var(--hpc-blue);
+    --hpc-neutral-bg: var(--pulse-surface-neutral, color-mix(in srgb, var(--primary-text-color) 5%, transparent));
+    --hpc-neutral-bg-hover: var(--pulse-surface-neutral-hover, color-mix(in srgb, var(--primary-text-color) 9%, transparent));
+    --hpc-neutral-strong: var(--pulse-surface-neutral-strong, color-mix(in srgb, var(--primary-text-color) 14%, transparent));
+    --hpc-radius: var(--pulse-radius, var(--ha-card-border-radius, 12px));
+    --hpc-control-radius: var(--pulse-control-radius, var(--ha-card-features-border-radius, var(--feature-border-radius, 12px)));
+    --hpc-chip-height: var(--pulse-chip-height, 30px);
+    --hpc-gap: var(--pulse-gap, 14px);
+    /* Corner glow: warm sun by day, cool moon by night, at the theme's glow strength. Override per theme if you like. */
+    --hpc-glow-day: var(--pulse-glow-day, var(--hpc-orange));
+    --hpc-glow-night: var(--pulse-glow-night, var(--hpc-blue));
+    --hpc-glow-strength: calc(var(--pulse-glow-alpha, 0.16) * 100%);
     /* Same inner padding as Area Pulse Card, so icons line up when the cards are stacked. */
-    --hpc-pad: 12px;
+    --hpc-pad: var(--pulse-pad, 12px);
     display: block;
     height: 100%;
   }
@@ -51,7 +57,7 @@ export const cardStyles = css`
     pointer-events: none;
     background: radial-gradient(
       130% 95% at 0% 0%,
-      color-mix(in srgb, var(--hpc-glow) 16%, transparent) 0%,
+      color-mix(in srgb, var(--hpc-glow) var(--hpc-glow-strength), transparent) 0%,
       transparent 58%
     );
     transition: background 1s ease;
@@ -204,9 +210,9 @@ export const cardStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
+    height: var(--hpc-chip-height);
     padding: 0 12px 0 9px;
-    border-radius: 15px;
+    border-radius: calc(var(--hpc-chip-height) / 2);
     border: none;
     font-size: 12px;
     font-weight: 500;

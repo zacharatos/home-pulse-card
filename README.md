@@ -174,7 +174,7 @@ shortcuts:
 
 ### Theming
 
-The card follows your theme. The corner glow uses `--hpc-glow-day` and `--hpc-glow-night`. Its other colours are CSS variables you can override in a theme or with card-mod: `--hpc-accent`, `--hpc-amber`, `--hpc-red`, `--hpc-green` and friends (they default to HA's `--amber-color` etc.), `--hpc-pad` for the inner padding. The alarm uses HA's `--state-alarm_control_panel-<state>-color` variables (fallbacks: blue disarmed, green armed, orange pending, red triggered).
+The card follows your theme. The corner glow uses `--hpc-glow-day` and `--hpc-glow-night`. Its other colours are CSS variables you can override in a theme or with card-mod: `--hpc-accent`, `--hpc-amber`, `--hpc-red`, `--hpc-green` and friends (they default to HA's `--amber-color` etc.), `--hpc-pad` for the inner padding. The alarm uses HA's `--state-alarm_control_panel-<state>-color` variables (fallbacks: blue disarmed, green armed, orange pending, red triggered). With the [Pulse theme](https://github.com/zacharatos/pulse-theme), every one of these reads the theme's shared `--pulse-*` tokens first.
 
 ## Development
 
