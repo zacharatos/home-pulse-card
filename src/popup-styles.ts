@@ -85,12 +85,14 @@ export const popupStyles = css`
     font: inherit;
     font-size: 13px;
     font-weight: 500;
-    color: color-mix(in srgb, var(--c) 72%, var(--primary-text-color));
-    background: color-mix(in srgb, var(--c) 16%, transparent);
+    /* A bulk button is an action, not a state: neutral fill and text, the icon in the accent (as in Area Pulse). */
+    color: var(--primary-text-color);
+    background: var(--hpc-neutral-bg);
     cursor: pointer;
     --mdc-icon-size: 18px;
   }
-  .bulk:hover { background: color-mix(in srgb, var(--c) 24%, transparent); }
+  .bulk ha-icon { color: var(--hpc-accent); }
+  .bulk:hover { background: var(--hpc-neutral-bg-hover); }
   .popup-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));

@@ -1,8 +1,9 @@
 import { css } from "lit";
 
-// Design: calm neutral surfaces with colour where it carries meaning: the shortcut icons, the
-// weather, who is home, the alarm state, and a soft sun (day) or moon (night) glow in the corner.
-// Shortcuts are the main feature. Paddings and radii match Area Pulse Card so the two line up.
+// Design: calm neutral surfaces, one accent (the shortcut icons), and colour only where it means
+// something: the weather, who is home, the alarm state, problems and lights, and a soft sun (day) or
+// moon (night) glow in the corner. Shapes, chips and colour rules match Area Pulse Card; as the overview
+// at the top of the dashboard it gets a little more room (16px instead of 12px).
 export const cardStyles = css`
   :host {
     /* Every variable reads the shared Pulse token first (set by the Pulse theme), then Home Assistant's
@@ -28,13 +29,23 @@ export const cardStyles = css`
     --hpc-radius: var(--pulse-radius, var(--ha-card-border-radius, 12px));
     --hpc-control-radius: var(--pulse-control-radius, var(--ha-card-features-border-radius, var(--feature-border-radius, 12px)));
     --hpc-chip-height: var(--pulse-chip-height, 30px);
-    --hpc-gap: var(--pulse-gap, 14px);
+    /* An overview breathes a little more than a room card: the family's gap and padding plus 4px. */
+    --hpc-gap: calc(var(--pulse-gap, 12px) + 4px);
     /* Corner glow: warm sun by day, cool moon by night, at the theme's glow strength. Override per theme if you like. */
     --hpc-glow-day: var(--pulse-glow-day, var(--hpc-orange));
     --hpc-glow-night: var(--pulse-glow-night, var(--hpc-blue));
     --hpc-glow-strength: calc(var(--pulse-glow-alpha, 0.16) * 100%);
-    /* Same inner padding as Area Pulse Card, so icons line up when the cards are stacked. */
-    --hpc-pad: var(--pulse-pad, 12px);
+    --hpc-pad: calc(var(--pulse-pad, 12px) + 4px);
+    /* Weather: the sun in the theme's gold (the glow colour is too pale for an icon on a light card),
+       the moon in the night glow, snow and hail cold. */
+    --hpc-sun: var(--hpc-amber);
+    --hpc-moon: var(--pulse-glow-night, var(--hpc-light-blue));
+    --hpc-cold: var(--pulse-cold, var(--hpc-light-blue));
+    /* Motion: the theme's rhythm, else the durations the card always used. */
+    --hpc-motion-fast: var(--pulse-motion-fast, 120ms);
+    --hpc-motion-normal: var(--pulse-motion-normal, 200ms);
+    --hpc-motion-slow: var(--pulse-motion-slow, 250ms);
+    --hpc-ease: var(--pulse-ease, ease);
     display: block;
     height: 100%;
   }
@@ -91,9 +102,9 @@ export const cardStyles = css`
   .greeting {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 16px;
     min-width: 0;
-    padding: 2px 2px 0;
+    padding: 2px 2px 4px;
   }
   .hello-text {
     flex: 1;
@@ -104,18 +115,18 @@ export const cardStyles = css`
   }
   .hello {
     margin: 0;
-    font-size: 20px;
-    line-height: 26px;
+    font-size: 24px;
+    line-height: 30px;
     font-weight: 500;
-    letter-spacing: -0.2px;
+    letter-spacing: -0.4px;
     color: var(--primary-text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .date {
-    font-size: 13px;
-    line-height: 18px;
+    font-size: 14px;
+    line-height: 20px;
     color: var(--secondary-text-color);
   }
   .greeting.center {
@@ -128,8 +139,8 @@ export const cardStyles = css`
     align-items: center;
   }
   .greeting.center .hello {
-    font-size: 26px;
-    line-height: 32px;
+    font-size: 28px;
+    line-height: 34px;
     white-space: normal;
   }
   .greeting.center .weather {
@@ -160,27 +171,46 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     gap: 6px;
-    --mdc-icon-size: 22px;
+    --mdc-icon-size: 24px;
   }
   .weather-main ha-icon {
     color: var(--c, var(--secondary-text-color));
   }
   .temp {
-    font-size: 20px;
-    line-height: 26px;
+    font-size: 24px;
+    line-height: 30px;
     font-weight: 400;
+    letter-spacing: -0.5px;
     font-variant-numeric: tabular-nums;
   }
   .weather-cond {
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--secondary-text-color);
+  }
+  /* Today's high and low from the forecast, one quiet line. */
+  .weather-range {
+    display: flex;
+    gap: 8px;
     font-size: 12px;
     line-height: 16px;
     color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    --mdc-icon-size: 12px;
+  }
+  .weather-range > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+  }
+  .greeting.center .weather-range {
+    justify-content: center;
   }
 
   /* ---- Status row: people, alarm, extra chips ---- */
   .status {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     overflow-x: auto;
     scrollbar-width: none;
     margin: 0 calc(-1 * var(--hpc-pad));
@@ -225,7 +255,7 @@ export const cardStyles = css`
     scroll-snap-align: start;
     user-select: none;
     -webkit-user-select: none;
-    transition: background-color 200ms ease, transform 120ms ease;
+    transition: background-color var(--hpc-motion-normal) var(--hpc-ease), transform var(--hpc-motion-fast) var(--hpc-ease);
     --mdc-icon-size: 16px;
   }
   .chip ha-icon,
@@ -242,13 +272,12 @@ export const cardStyles = css`
     outline: 2px solid var(--hpc-accent);
     outline-offset: 1px;
   }
-  /* Something is on: tinted with its group colour, like Area Pulse. */
-  .chip.active {
-    color: color-mix(in srgb, var(--c) 72%, var(--primary-text-color));
-    background: color-mix(in srgb, var(--c) 16%, transparent);
-  }
+  /* Home pulse: neutral fill and text, only the icon carries the meaning (Area Pulse's chip_colors: state). */
   .chip.active ha-icon {
     color: var(--c);
+  }
+  .chip.idle {
+    color: var(--secondary-text-color);
   }
   .chip.colored ha-icon,
   .chip.colored ha-state-icon {
@@ -267,7 +296,8 @@ export const cardStyles = css`
   }
   .chip.alarm.loud ha-icon {
     color: var(--c);
-    animation: hpc-blink 1.4s ease-in-out infinite;
+    /* A few blinks when it starts, then still: the tinted chip keeps the attention. */
+    animation: hpc-blink 1.4s ease-in-out 3;
   }
   .chip .label {
     overflow: hidden;
@@ -370,7 +400,7 @@ export const cardStyles = css`
   }
   .alarm-row.triggered .alarm-icon ha-icon,
   .alarm-row.pending .alarm-icon ha-icon {
-    animation: hpc-blink 1.4s ease-in-out infinite;
+    animation: hpc-blink 1.4s ease-in-out 3;
   }
   .alarm-titles {
     min-width: 0;
@@ -412,7 +442,7 @@ export const cardStyles = css`
     color: var(--primary-text-color);
     background: var(--hpc-neutral-bg-hover);
     cursor: pointer;
-    transition: background-color 200ms ease, transform 120ms ease;
+    transition: background-color var(--hpc-motion-normal) var(--hpc-ease), transform var(--hpc-motion-fast) var(--hpc-ease);
     --mdc-icon-size: 20px;
   }
   .alarm-btn ha-icon {
@@ -446,24 +476,25 @@ export const cardStyles = css`
     flex-direction: column;
     gap: 8px;
   }
+  /* The alert line is Area Pulse's alert banner: the one red block, a few blinks, then still. */
   .banner {
     --c: var(--hpc-red);
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 40px;
-    padding: 4px 12px;
+    min-height: 44px;
+    padding: 8px 12px;
     box-sizing: border-box;
     border-radius: var(--hpc-control-radius);
     background: color-mix(in srgb, var(--c) 14%, transparent);
-    color: color-mix(in srgb, var(--c) 80%, var(--primary-text-color));
+    color: var(--c);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     --mdc-icon-size: 20px;
   }
   .banner.alert ha-icon.lead {
-    animation: hpc-blink 1.4s ease-in-out infinite;
+    animation: hpc-blink 1.4s ease-in-out 3;
   }
   .banner .text {
     flex: 1;
@@ -472,15 +503,18 @@ export const cardStyles = css`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* "Nobody's home": neutral block and text, the icon says it needs a look; the fixes are actions. */
   .banner.nudge {
-    --c: var(--hpc-amber);
     align-items: flex-start;
-    padding: 10px 12px;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--hpc-neutral-bg);
     color: var(--primary-text-color);
     cursor: default;
   }
   .banner.nudge ha-icon.lead {
-    color: color-mix(in srgb, var(--c) 85%, var(--primary-text-color));
+    margin-top: 1px;
+    color: var(--hpc-orange);
   }
   .nudge-body {
     flex: 1;
@@ -500,26 +534,37 @@ export const cardStyles = css`
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 6px;
+    margin-top: 8px;
   }
   .banner .fix {
     flex: none;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 32px;
-    padding: 0 12px 0 10px;
+    height: var(--hpc-chip-height);
+    padding: 0 12px 0 9px;
     border: none;
-    border-radius: 16px;
+    border-radius: calc(var(--hpc-chip-height) / 2);
     font-size: 12px;
     font-weight: 500;
     color: var(--primary-text-color);
-    background: color-mix(in srgb, var(--c) 24%, transparent);
+    background: var(--hpc-neutral-bg-hover);
     cursor: pointer;
+    transition: background-color var(--hpc-motion-normal) var(--hpc-ease), transform var(--hpc-motion-fast) var(--hpc-ease);
     --mdc-icon-size: 16px;
   }
+  .banner .fix ha-icon {
+    color: var(--hpc-accent);
+  }
   .banner .fix:hover {
-    background: color-mix(in srgb, var(--c) 34%, transparent);
+    background: var(--hpc-neutral-strong);
+  }
+  .banner .fix:active {
+    transform: scale(0.96);
+  }
+  .banner .fix:focus-visible {
+    outline: 2px solid var(--hpc-accent);
+    outline-offset: 1px;
   }
   @keyframes hpc-blink {
     50% {
@@ -586,12 +631,12 @@ export const cardStyles = css`
     --c: var(--hpc-accent);
     flex: 1 1 0;
     min-width: 0;
-    height: 52px;
+    height: 56px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     padding: 0 4px;
     border: none;
     border-radius: var(--hpc-control-radius);
@@ -601,7 +646,8 @@ export const cardStyles = css`
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
-    transition: background-color 250ms ease, color 250ms ease, transform 120ms ease;
+    transition: background-color var(--hpc-motion-slow) var(--hpc-ease), color var(--hpc-motion-slow) var(--hpc-ease),
+      transform var(--hpc-motion-fast) var(--hpc-ease);
     --mdc-icon-size: 20px;
   }
   .mode:hover {
@@ -614,10 +660,11 @@ export const cardStyles = css`
     outline: 2px solid var(--c);
     outline-offset: -2px;
   }
-  .mode.active {
-    color: color-mix(in srgb, var(--c) 75%, var(--primary-text-color));
-    background: color-mix(in srgb, var(--c) 20%, var(--ha-card-background, var(--card-background-color, #fff)));
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  /* Like an active tile: a stronger neutral fill and the text colour; the mode's colour stays on the icon. */
+  .mode.active,
+  .mode.active:hover {
+    color: var(--primary-text-color);
+    background: var(--hpc-neutral-strong);
   }
   .mode.active ha-icon {
     color: var(--c);
@@ -636,7 +683,7 @@ export const cardStyles = css`
     .mode {
       flex-direction: row;
       gap: 8px;
-      height: 42px;
+      height: 46px;
     }
     .mode-name {
       font-size: 13px;
@@ -647,24 +694,24 @@ export const cardStyles = css`
   .shortcuts {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
   /* Rows are balanced in code (7 → 4 + 3); every tile in a row shares the width. */
   .shortcut-row {
     display: flex;
-    gap: 8px;
+    gap: 10px;
   }
   .shortcut {
     --c: var(--hpc-accent);
     position: relative;
     flex: 1 1 0;
     min-width: 0;
-    height: 64px;
+    height: 72px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     padding: 0 6px;
     box-sizing: border-box;
     border: none;
@@ -675,12 +722,11 @@ export const cardStyles = css`
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
-    transition: background-color 200ms ease, transform 120ms ease;
+    transition: background-color var(--hpc-motion-normal) var(--hpc-ease), transform var(--hpc-motion-fast) var(--hpc-ease);
     --mdc-icon-size: 26px;
   }
   .shortcut.named {
-    height: 80px;
-    --mdc-icon-size: 24px;
+    height: 92px;
   }
   .shortcut ha-icon,
   .shortcut ha-state-icon {
@@ -696,13 +742,15 @@ export const cardStyles = css`
     outline: 2px solid var(--hpc-accent);
     outline-offset: 1px;
   }
-  .shortcut.active {
-    background: color-mix(in srgb, var(--c) 18%, transparent);
+  /* Its entity is on: like an active tile, a stronger neutral fill; the colour stays on the icon. */
+  .shortcut.active,
+  .shortcut.active:hover {
+    background: var(--hpc-neutral-strong);
   }
   .shortcut .name {
     max-width: 100%;
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 13px;
+    line-height: 18px;
     font-weight: 500;
     color: var(--primary-text-color);
     overflow: hidden;
@@ -711,14 +759,14 @@ export const cardStyles = css`
   }
   .badge {
     position: absolute;
-    top: 7px;
-    right: 7px;
-    min-width: 18px;
-    height: 18px;
-    max-width: calc(100% - 14px);
+    top: 8px;
+    right: 8px;
+    min-width: 20px;
+    height: 20px;
+    max-width: calc(100% - 16px);
     padding: 0 6px;
     box-sizing: border-box;
-    border-radius: 9px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -728,10 +776,13 @@ export const cardStyles = css`
     font-size: 11px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    /* Tinted like the chips, so it stays legible on any colour in light and dark themes. */
-    color: color-mix(in srgb, var(--c) 70%, var(--primary-text-color));
-    background: color-mix(in srgb, var(--c) 30%, var(--ha-card-background, var(--card-background-color, #fff)));
-    box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+    /* Neutral, unless the count means something (lights on, open, problems): then its tone. */
+    color: var(--primary-text-color);
+    background: color-mix(in srgb, var(--primary-text-color) 16%, var(--ha-card-background, var(--card-background-color, #fff)));
+  }
+  .badge.toned {
+    color: color-mix(in srgb, var(--t) 70%, var(--primary-text-color));
+    background: color-mix(in srgb, var(--t) 26%, var(--ha-card-background, var(--card-background-color, #fff)));
   }
 
   .warning {
@@ -747,9 +798,13 @@ export const cardStyles = css`
     --hpc-gap: 10px;
     --hpc-pad: 10px;
   }
+  :host([layout="compact"]) .greeting {
+    gap: 12px;
+    padding: 0;
+  }
   :host([layout="compact"]) .hello {
-    font-size: 17px;
-    line-height: 22px;
+    font-size: 18px;
+    line-height: 24px;
   }
   :host([layout="compact"]) .date,
   :host([layout="compact"]) .weather-cond {
@@ -757,7 +812,16 @@ export const cardStyles = css`
     line-height: 16px;
   }
   :host([layout="compact"]) .temp {
-    font-size: 17px;
+    font-size: 18px;
+    line-height: 24px;
+  }
+  :host([layout="compact"]) .weather-main {
+    --mdc-icon-size: 20px;
+  }
+  :host([layout="compact"]) .status,
+  :host([layout="compact"]) .shortcuts,
+  :host([layout="compact"]) .shortcut-row {
+    gap: 6px;
   }
   :host([layout="compact"]) .chip {
     height: 26px;
@@ -780,6 +844,17 @@ export const cardStyles = css`
   :host([layout="compact"]) .shortcut.named {
     height: 64px;
     gap: 4px;
+    --mdc-icon-size: 22px;
+  }
+  :host([layout="compact"]) .badge {
+    top: 6px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+  }
+  :host([layout="compact"]) .banner.nudge {
+    padding: 10px 12px;
   }
   :host([layout="compact"]) .shortcut .name {
     font-size: 11px;
@@ -790,6 +865,14 @@ export const cardStyles = css`
     .alarm-row ha-icon,
     .chip.alarm.loud ha-icon {
       animation: none !important;
+    }
+    .glow,
+    .chip,
+    .mode,
+    .shortcut,
+    .banner .fix,
+    .alarm-btn {
+      transition: none;
     }
   }
 `;

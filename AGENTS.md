@@ -52,13 +52,14 @@ Don't write a commit message unless he asks for one. If he does, offer it as a s
 | `src/home-pulse-card.ts` | The card element: `setConfig`, `getStubConfig`, `getConfigElement`, `getGridOptions`, `willUpdate` (caches the home index), `render` and one `_render*` per block (greeting, status row, alarm, pulse, shortcuts), the group popup with native tiles and fallback tiles. Registers the card in `window.customCards`. Holds `VERSION`. |
 | `src/home.ts` | Pure logic. `indexHome` (which entities feed each pulse group), `isActive`/`pulseGroups` (same rules as Area Pulse groups), `discoverPersons`/`discoverOne`, `alarmView` (state tone, which arm/disarm buttons, whether a code is needed), `nudges`, `balanceRows`, `resolveNavigationPath`, `shortcutTapAction`/`shortcutBadge`, `watchedEntities`, `byArea`. |
 | `src/modes.ts` | Pure logic for house modes: `discoverModeEntity` (only `house_mode`/`home_mode` selects are guessed), `resolveModes` (buttons, active mode: the selector's option, the latest scene, or an on entity), `guessModeIcon` (English + Greek keywords), `modeEntities`. |
+| `src/weather.ts` | Pure logic for the weather's range: `forecastType` (daily, else twice-daily, else hourly, from `supported_features`), `todayRange` (today's high and low). The card subscribes with `weather/subscribe_forecast` (`_syncForecast`, one subscription, dropped on disconnect). |
 | `src/today.ts` | Pure logic for the Today line: `todayCalendars`, `todayItems` (calendar next events, `daysTo`/date/timestamp/"days"/text sensors, today + tomorrow), `formatTodayItem`, `parseLocal`, `dayDiff`. |
 | `src/action-handler.ts` | Tap / hold / double-tap handling (copied from Area Pulse, events renamed `hpc-action`). |
 | `src/editor.ts` | Visual editor on `ha-form` selectors, plus the shortcut list (add, reorder, remove). Defaults are kept out of the YAML (`DEFAULTS`). |
 | `src/types.ts` | Config types and the slice of the HA frontend API the card uses. |
 | `src/localize.ts` | All user-facing strings (`en`, `el`), `localize`, `relativeTime`. Pulse wording is shared with Area Pulse on purpose. |
 | `src/styles.ts`, `src/popup-styles.ts` | Card and popup CSS. Colours go through `--hpc-*` variables that fall back to HA theme variables; shapes and paddings match Area Pulse (`--apc-*`). |
-| `test/home.test.mjs`, `test/modes-today.test.mjs` | `node:test` unit tests for the pure modules. |
+| `test/home.test.mjs`, `test/modes-today.test.mjs`, `test/weather.test.mjs` | `node:test` unit tests for the pure modules. |
 | `test/harness.html`, `test/icons.js` | Browser harness with a mock `hass` and stubbed `ha-card`/`ha-icon`/`ha-state-icon`. `icons.js` is generated from `@mdi/js` for the icons the card and harness use. |
 | `dist/home-pulse-card.js` | The built bundle. **Committed on purpose**: HACS serves it and CI fails if it is out of date. |
 
@@ -80,13 +81,15 @@ npm run build          # rewrites dist/home-pulse-card.js
 ## How we work on this card
 
 - **Shortcuts are the point.** The default card is greeting (+ Today line) + status line + (silent) alerts + (silent) nudges + modes (only when configured or discovered) + shortcuts. Don't repeat on this card what Area Pulse cards show per room (lights, windows, doors...): that is what made the first version feel crowded. New information goes in an opt-in block or option.
-- **Colour carries meaning.** The maintainer likes colour where it means something: shortcut icons (user `color`, default `--hpc-accent`) and their badges, the weather icon, green for people at home, HA's alarm state colours, the sun/moon corner glow (`sun.sun`, else the clock). Surfaces stay neutral (`--hpc-neutral-bg`, `-hover`, `-strong`); don't add colour to surfaces or text for decoration.
+- **Colour only means state** (the family rule, as Area Pulse's `chip_colors: state`). The one accent is on the shortcut icons (a user `color` is still honoured) and the action icons (nudge fixes, bulk buttons). Colour otherwise appears only where it means something, through `pulseTone`: problems red (alerts, batteries, locks), openings orange (doors, windows), lights gold; every other group is neutral. Also: the weather icon (sun gold, moon in the night glow, rain/storm/snow in their meaning), green for people at home, HA's alarm state colours, the sun/moon corner glow. "Active" is a stronger neutral fill with the colour on the icon (shortcuts with an `entity`, the current mode), never a tinted fill. The only tinted blocks are the red alert line and a loud alarm chip. Surfaces and text stay neutral.
+- **Room to breathe.** As the overview at the top of the dashboard, the card uses the family's gap and padding plus 4px (16px; `compact` keeps 10px), a 24px greeting and taller shortcut tiles. Chip height, radii and control shapes are the family's.
+- **Motion** reads `--pulse-motion-*` / `--pulse-ease` through `--hpc-motion-*` (fallbacks are the old literals). Alerts and a triggered alarm blink three times, then stay still; `prefers-reduced-motion` turns animations and transitions off.
 - **Pulse tokens first.** Every `--hpc-*` variable reads the shared `--pulse-*` token first, then the Home Assistant variable, then the value the card always used: `--hpc-accent: var(--pulse-accent, var(--primary-color));`. Keep that last fallback unchanged, so the card looks the same without the Pulse theme; prove it with harness screenshots before and after. Category colours keep reading HA's palette. The token contract is in the Pulse theme's README.
-- **Same family as Area Pulse.** Same chip shape (30px pill), control radius and padding (12px), wording and icons. If you change one of those, it probably belongs in both cards; say so in the hand-off.
+- **Same family as Area Pulse.** Same chip shape (30px pill), control radius, colour rules, wording and icons (padding is deliberately 4px roomier, see above). If you change one of those, it probably belongs in both cards; say so in the hand-off.
 - **Stay native.** `ha-card`, `ha-icon`/`ha-state-icon`, `hass-more-info`, `hass-action` for every action (so `confirmation`, `navigate`, `perform-action` behave like core cards), `ha-form` selectors, native tile cards in the popup with a fallback. HA state colours (`--state-alarm_control_panel-*-color`) before our own.
 - **Zero config first.** `type: custom:home-pulse-card` alone must already be useful: people, weather, the alarm and safety sensors are discovered. Shortcuts are the only thing that needs config.
 - **Safe actions.** An alarm that needs a code opens HA's own keypad (more-info); never send a code from the card. Bulk actions and nudge fixes target only the entities that are active, never "everything in the domain".
-- **Whole house, not rooms.** Modes and the Today line are things only an overview can do well; keep additions in that spirit.
+- **Whole house, not rooms.** Modes, the Today line, today's weather range and the "nobody's home" check (doors, windows, locks, lights, media, alarm) are things only an overview can do well; keep additions in that spirit.
 - **Quiet by default.** The alerts block renders nothing until a sensor trips; the nudges block renders nothing unless every tracked person is away and something was left on. In the opt-in pulse, an empty pulse is a single "All quiet" chip.
 - **Fast in big homes.** `indexHome` scans `hass.states` only when the registry or config changes (`willUpdate`); `shouldUpdate` only re-renders for `watchedEntities`, plus a one-minute ticker for the greeting and relative times. Don't add per-render scans.
 - **Explicit config wins over discovery.** A configured `persons`, `weather_entity` or `alarm_entity` is used even if it is hidden in HA; `none` turns discovery off.
@@ -96,6 +99,8 @@ npm run build          # rewrites dist/home-pulse-card.js
 ## Things only a real Home Assistant can prove
 
 - The visual editor: `ha-form` selectors, the reorderable `sections`/`pulse` lists (`reorder` needs a recent HA), `ui_action` selectors in shortcuts, YAML round-trips.
+- The weather range against your real weather integration (which forecast types it offers, and that the subscription is dropped when you leave the dashboard).
+- The "nobody's home" fixes on real locks (`lock.lock` on only the unlocked ones) and the windows/doors popup.
 - House modes against a real `input_select` and scenes (scene state = last activation time), and the Today line with your real calendars and waste sensor; times in 12/24h per your profile.
 - `navigate` from shortcuts (relative paths resolve against the current dashboard), more-info for people, weather and the alarm keypad.
 - Alarm arm/disarm on a real panel, with and without a code, and `supported_features` filtering the buttons.

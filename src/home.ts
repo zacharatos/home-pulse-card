@@ -199,6 +199,28 @@ export interface PulseGroup {
   active: string[];
 }
 
+/**
+ * What a group's colour means (the same rule as Area Pulse's `chip_colors: state`): a problem, something
+ * that needs a look, lights on, or nothing worth a colour.
+ */
+export type PulseTone = "" | "on" | "warn" | "bad";
+
+export function pulseTone(id: PulseId): PulseTone {
+  switch (id) {
+    case "alerts":
+    case "batteries":
+    case "locks":
+      return "bad";
+    case "doors":
+    case "windows":
+      return "warn";
+    case "lights":
+      return "on";
+    default:
+      return "";
+  }
+}
+
 export function pulseGroups(hass: HomeAssistant, config: HomePulseCardConfig, index: HomeIndex): PulseGroup[] {
   const threshold = config.battery_threshold ?? 20;
   return (config.pulse ?? DEFAULT_PULSE)
@@ -278,19 +300,25 @@ export function alarmView(s: HassEntity | undefined, modes: AlarmMode[] = DEFAUL
 
 // ---- Nudges ---------------------------------------------------------------
 
-export type NudgeId = "away_lights" | "away_media" | "away_alarm";
+export type NudgeId = "away_doors" | "away_windows" | "away_locks" | "away_lights" | "away_media" | "away_alarm";
+
+/** Groups the nudges look at, in the order they are reported: the house's safety first. */
+export const NUDGE_GROUPS: PulseId[] = ["doors", "windows", "locks", "lights", "media"];
 
 export interface Nudge {
   id: NudgeId;
   n: number;
   entities: string[];
   /** The one-tap fix. */
-  action: ActionConfig;
+  action?: ActionConfig;
+  /** No fix from afar (an open window): show which ones instead. */
+  popup?: PulseId;
 }
 
 /**
- * Hints for when nobody is home: lights still on, media still playing, alarm still disarmed.
- * Needs at least one tracked person, otherwise "nobody home" can't be known.
+ * Hints for when nobody is home: doors or windows left open, locks unlocked, lights still on, media
+ * still playing, alarm still disarmed. Needs at least one tracked person, otherwise "nobody home"
+ * can't be known.
  */
 export function nudges(
   hass: HomeAssistant,
@@ -300,7 +328,20 @@ export function nudges(
 ): Nudge[] {
   if (!persons.length || persons.some((p) => isHome(hass.states[p]))) return [];
   const out: Nudge[] = [];
-  const lights = groups.find((g) => g.id === "lights")?.active ?? [];
+  const active = (id: PulseId) => groups.find((g) => g.id === id)?.active ?? [];
+  for (const id of ["doors", "windows"] as const) {
+    const open = active(id);
+    if (open.length) out.push({ id: `away_${id}`, n: open.length, entities: open, popup: id });
+  }
+  const unlocked = active("locks");
+  if (unlocked.length)
+    out.push({
+      id: "away_locks",
+      n: unlocked.length,
+      entities: unlocked,
+      action: { action: "perform-action", perform_action: "lock.lock", target: { entity_id: unlocked } },
+    });
+  const lights = active("lights");
   if (lights.length)
     out.push({
       id: "away_lights",
@@ -308,7 +349,7 @@ export function nudges(
       entities: lights,
       action: { action: "perform-action", perform_action: "light.turn_off", target: { entity_id: lights } },
     });
-  const media = groups.find((g) => g.id === "media")?.active ?? [];
+  const media = active("media");
   if (media.length)
     out.push({
       id: "away_media",
@@ -371,6 +412,11 @@ export function shortcutActive(hass: HomeAssistant, sc: ShortcutConfig): boolean
  * Badge text: a pulse id shows how many are active (nothing when zero), an entity id shows its state.
  * Pulse groups not shown in the pulse block are still counted from the index.
  */
+/** Colour meaning of a badge: a group count carries its group's tone, an entity's state carries none. */
+export function badgeTone(sc: ShortcutConfig): PulseTone {
+  return sc.badge && PULSE_IDS.includes(sc.badge as PulseId) ? pulseTone(sc.badge as PulseId) : "";
+}
+
 export function shortcutBadge(
   hass: HomeAssistant,
   sc: ShortcutConfig,
@@ -410,15 +456,12 @@ export function watchedEntities(
     if (sc.badge && sc.badge.includes(".")) out.add(sc.badge);
   }
   // Only the groups something on the card shows: the pulse block, the alerts block, the nudges
-  // (lights and media), and shortcut badges.
+  // (openings, locks, lights and media), and shortcut badges.
   const sections = config.sections ?? DEFAULT_SECTIONS;
   const pulse = new Set<PulseId>();
   if (sections.includes("pulse")) for (const id of config.pulse ?? DEFAULT_PULSE) pulse.add(id);
   if (sections.includes("alerts")) pulse.add("alerts");
-  if (sections.includes("nudges") && config.nudges !== false) {
-    pulse.add("lights");
-    pulse.add("media");
-  }
+  if (sections.includes("nudges") && config.nudges !== false) for (const id of NUDGE_GROUPS) pulse.add(id);
   for (const sc of config.shortcuts ?? []) if (sc.badge && PULSE_IDS.includes(sc.badge as PulseId)) pulse.add(sc.badge as PulseId);
   for (const id of pulse) for (const e of index[id] ?? []) out.add(e);
   return out;

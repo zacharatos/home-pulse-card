@@ -2,9 +2,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 
-The card for the top of your Home Assistant overview, built around one job: getting you to the rest of your dashboard. Colourful shortcut tiles are the heart of it; above them, a greeting with the weather, and one line with the alarm and who's home. The card stays out of the way of your area cards: it doesn't repeat what they show room by room. It speaks up only when something needs you: a tripped leak or smoke sensor, or everyone out with lights on.
+The card for the top of your Home Assistant overview, built around one job: getting you to the rest of your dashboard. Large shortcut tiles are the heart of it; above them, a greeting with the weather and today's high and low, and one line with the alarm and who's home. The card stays out of the way of your area cards: it doesn't repeat what they show room by room. It speaks up only when something needs you: a tripped leak or smoke sensor, or everyone out with a window open or the lights on. Colour is kept for what means something (a problem, something open, lights on, who's home), so the card stays calm.
 
-A soft glow in the top-left corner follows the sun: warm orange by day, cool blue at night. It is the sibling of [Area Pulse Card](https://github.com/zacharatos/area-pulse-card) (same paddings, radii, chip shape and colours, so they line up when stacked), and it uses `ha-card`, your theme variables, the native more-info dialogs and Home Assistant's own action handler, so it sits comfortably next to the built-in cards.
+A soft glow in the top-left corner follows the sun: warm orange by day, cool blue at night. It is the sibling of [Area Pulse Card](https://github.com/zacharatos/area-pulse-card) (same radii, chip shape and colour rules; as the overview it gets a little more room: 16px inside instead of 12px), and it uses `ha-card`, your theme variables, the native more-info dialogs and Home Assistant's own action handler, so it sits comfortably next to the built-in cards.
 
 ![Dark theme](docs/dark.png)
 ![Light theme](docs/light.png)
@@ -12,12 +12,12 @@ A soft glow in the top-left corner follows the sun: warm orange by day, cool blu
 ## Features
 
 - **Shortcuts first.** Large tiles with an icon and a name that take you to your other views (`navigation_path: lights` stays on the current dashboard) or run any action, with tap, hold and double-tap. Rows balance themselves (7 tiles on 4 columns → 4 + 3, 5 → 3 + 2). Optional small badges: a count (`badge: lights` → how many lights are on) or any entity's state (`badge: sensor.open_tasks`).
-- **Header with a sky.** "Good evening, Timos" with today's date, and the weather (coloured icon, temperature, condition) on the right. The corner glow is orange while the sun is up and blue after sunset (from `sun.sun`, or the clock without it). Your own text with `{name}` if you prefer, or centred.
+- **Header with a sky.** "Good evening, Timos" with today's date, and the weather on the right: icon, temperature, condition and today's high and low from the weather's own forecast (daily, twice-daily or hourly, whichever it has; nothing extra to set up). The corner glow is orange while the sun is up and blue after sunset (from `sun.sun`, or the clock without it). Your own text with `{name}` if you prefer, or centred.
 - **Today line.** One quiet line under the date answers "anything to remember?": "Dentist 17:30 · Recycling tomorrow". It reads the next event of your calendars (all of them, or the ones you pick) plus any waste-collection, date, timestamp or text sensors you add, shows today and tomorrow, and disappears when there's nothing. Times follow your HA 12/24-hour setting.
-- **House modes.** A row of buttons for the whole house: Home, Away, Night, Movie, Guest… with the current one lit in its colour. Point it at an `input_select` (an `input_select.house_mode` is found by itself) and you get one button per option, with icons guessed from the names in English or Greek. Or list modes that run a scene (the last one run is lit), a script, an `input_boolean` or any action.
+- **House modes.** A row of buttons for the whole house: Home, Away, Night, Movie, Guest… with the current one raised and its icon in its colour. Point it at an `input_select` (an `input_select.house_mode` is found by itself) and you get one button per option, with icons guessed from the names in English or Greek. Or list modes that run a scene (the last one run is lit), a script, an `input_boolean` or any action.
 - **One status line.** The alarm as a small chip with its state colour and icon (tap for Home Assistant's own alarm dialog with its arm buttons and keypad), then the people in your home: picture or initial, green with a dot when home, dimmed with "Away" or their zone when out.
 - **Silent until it matters.** Leak, smoke, gas, CO and other safety sensors stay invisible; one that trips becomes a red line you can tap.
-- **"Nobody's home" hint.** When everyone tracked is away and lights are on, music is playing or the alarm is off, one banner says so with a button per fix: *Lights off*, *Pause media*, *Arm away*. The fixes touch only what is on.
+- **"Nobody's home" hint.** When everyone tracked is away and a door or window is open, a lock is unlocked, lights are on, music is playing or the alarm is off, one quiet banner says so with a button per fix: *Show windows* (there's nothing to do from afar, so it lists which ones), *Lock*, *Lights off*, *Pause media*, *Arm away*. The fixes touch only what is on or open.
 - **Zero config.** People, weather, the alarm panel, the sun and the safety sensors are discovered. Shortcuts are the only thing to set up, in the visual editor or YAML.
 - **More, if you want it.** Two opt-in blocks for people who like more on the card: the alarm as a panel with arm and disarm buttons, and a home "pulse" (lights on, windows open, what's playing, low batteries…) with a popup of exactly which ones. They're off by default because Area Pulse cards already show this per room.
 - **Layouts.** `card` or `flat` (no background), `default` or `compact`, and you choose which blocks show and in what order.
@@ -166,7 +166,7 @@ shortcuts:
 | --- | --- |
 | `name` | Label (shown with `show_names`, and always used for accessibility). |
 | `icon` | Any `mdi:` icon. Defaults to the entity's icon when `entity` is set. |
-| `color` | Icon colour: a Home Assistant colour name (`amber`, `blue`, `deep-orange`…) or any CSS colour. Default: your theme's primary colour. Badges take the same colour. |
+| `color` | Icon colour: a Home Assistant colour name (`amber`, `blue`, `deep-orange`…) or any CSS colour. Default: your theme's primary colour (we recommend leaving it). Badges stay neutral, except a count that means something: lights on in gold, open doors and windows in orange, unlocked locks, alerts and low batteries in red. |
 | `navigation_path` | Shorthand for a navigate action. `lights` goes to the `lights` view of the current dashboard; `/lovelace/lights` or `/energy` are used as they are. |
 | `badge` | A pulse group (`lights`, `windows`, `locks`, `batteries`… shows how many are active, nothing at zero) or an entity id (shows its state; hidden when `0`, `off` or unavailable). |
 | `entity` | Tints the tile while this entity is on/open/playing. Without a `navigation_path` or `tap_action`, tapping opens its dialog. |
@@ -174,7 +174,7 @@ shortcuts:
 
 ### Theming
 
-The card follows your theme. The corner glow uses `--hpc-glow-day` and `--hpc-glow-night`. Its other colours are CSS variables you can override in a theme or with card-mod: `--hpc-accent`, `--hpc-amber`, `--hpc-red`, `--hpc-green` and friends (they default to HA's `--amber-color` etc.), `--hpc-pad` for the inner padding. The alarm uses HA's `--state-alarm_control_panel-<state>-color` variables (fallbacks: blue disarmed, green armed, orange pending, red triggered). With the [Pulse theme](https://github.com/zacharatos/pulse-theme), every one of these reads the theme's shared `--pulse-*` tokens first.
+The card follows your theme. The corner glow uses `--hpc-glow-day` and `--hpc-glow-night`; the weather icon `--hpc-sun`, `--hpc-moon` and `--hpc-cold`. Its other colours are CSS variables you can override in a theme or with card-mod: `--hpc-accent`, `--hpc-amber`, `--hpc-red`, `--hpc-green` and friends (they default to HA's `--amber-color` etc.), `--hpc-pad` and `--hpc-gap` for the inner padding and the space between blocks (16px each; `compact` uses 10px). The alarm uses HA's `--state-alarm_control_panel-<state>-color` variables (fallbacks: blue disarmed, green armed, orange pending, red triggered). With the [Pulse theme](https://github.com/zacharatos/pulse-theme), every one of these reads the theme's shared `--pulse-*` tokens first.
 
 ## Development
 

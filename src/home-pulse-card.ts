@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import {
   alarmView,
+  badgeTone,
   balanceRows,
   byArea,
   cssColor,
@@ -27,8 +28,10 @@ import {
   indexHome,
   isHome,
   isNight,
+  NUDGE_GROUPS,
   nudges,
   pulseGroups,
+  pulseTone,
   SECTION_IDS,
   shortcutActive,
   shortcutBadge,
@@ -41,7 +44,9 @@ import {
   type HomeIndex,
   type Nudge,
   type PulseGroup,
+  type PulseTone,
 } from "./home";
+import { forecastType, todayRange, type ForecastItem } from "./weather";
 import { discoverModeEntity, modeEntities, resolveModes, type ResolvedMode } from "./modes";
 import { formatTodayItem, todayCalendars, todayEntities, todayItems } from "./today";
 import { actionHandler, type ActionKind } from "./action-handler";
@@ -56,19 +61,27 @@ interface CardHelpers {
   createCardElement: (config: Record<string, unknown>) => HTMLElement | Promise<HTMLElement>;
 }
 
-/** Same icons and colours as the Area Pulse Card group chips. */
-const PULSE_META: Record<PulseId, { icon: string; iconOff: string; color: string; keys: [string, string, string] }> = {
-  alerts: { icon: "mdi:alert", iconOff: "mdi:shield-check", color: "var(--hpc-red)", keys: ["alert", "alerts_n", "alerts_none"] },
-  lights: { icon: "mdi:lightbulb-on", iconOff: "mdi:lightbulb-outline", color: "var(--hpc-amber)", keys: ["light_on", "lights_on_n", "lights_off_all"] },
-  doors: { icon: "mdi:door-open", iconOff: "mdi:door-closed", color: "var(--hpc-orange)", keys: ["door_open", "doors_open", "doors_closed"] },
-  windows: { icon: "mdi:window-open-variant", iconOff: "mdi:window-closed-variant", color: "var(--hpc-orange)", keys: ["window_open", "windows_open", "windows_closed"] },
-  covers: { icon: "mdi:window-shutter-open", iconOff: "mdi:window-shutter", color: "var(--hpc-purple)", keys: ["cover_open", "covers_open_n", "covers_closed"] },
-  locks: { icon: "mdi:lock-open-variant", iconOff: "mdi:lock", color: "var(--hpc-deep-orange)", keys: ["lock_unlocked", "lock_unlocked", "locks_locked"] },
-  fans: { icon: "mdi:fan", iconOff: "mdi:fan-off", color: "var(--hpc-light-blue)", keys: ["fan_on", "fans_on_n", "fans_off_all"] },
-  switches: { icon: "mdi:power-socket-eu", iconOff: "mdi:power-plug-off-outline", color: "var(--hpc-teal)", keys: ["switch_on", "switches_on_n", "switches_off_all"] },
-  media: { icon: "mdi:play-circle", iconOff: "mdi:speaker", color: "var(--hpc-indigo)", keys: ["media_playing_n", "media_playing_n", "media_idle"] },
-  climate: { icon: "mdi:thermostat", iconOff: "mdi:thermostat", color: "var(--hpc-deep-orange)", keys: ["climate_on", "climate_on_n", "climate_off"] },
-  batteries: { icon: "mdi:battery-alert-variant-outline", iconOff: "mdi:battery", color: "var(--hpc-red)", keys: ["battery_low", "batteries_low", "batteries_ok"] },
+/** Same icons as the Area Pulse Card group chips. */
+const PULSE_META: Record<PulseId, { icon: string; iconOff: string; keys: [string, string, string] }> = {
+  alerts: { icon: "mdi:alert", iconOff: "mdi:shield-check", keys: ["alert", "alerts_n", "alerts_none"] },
+  lights: { icon: "mdi:lightbulb-on", iconOff: "mdi:lightbulb-outline", keys: ["light_on", "lights_on_n", "lights_off_all"] },
+  doors: { icon: "mdi:door-open", iconOff: "mdi:door-closed", keys: ["door_open", "doors_open", "doors_closed"] },
+  windows: { icon: "mdi:window-open-variant", iconOff: "mdi:window-closed-variant", keys: ["window_open", "windows_open", "windows_closed"] },
+  covers: { icon: "mdi:window-shutter-open", iconOff: "mdi:window-shutter", keys: ["cover_open", "covers_open_n", "covers_closed"] },
+  locks: { icon: "mdi:lock-open-variant", iconOff: "mdi:lock", keys: ["lock_unlocked", "lock_unlocked", "locks_locked"] },
+  fans: { icon: "mdi:fan", iconOff: "mdi:fan-off", keys: ["fan_on", "fans_on_n", "fans_off_all"] },
+  switches: { icon: "mdi:power-socket-eu", iconOff: "mdi:power-plug-off-outline", keys: ["switch_on", "switches_on_n", "switches_off_all"] },
+  media: { icon: "mdi:play-circle", iconOff: "mdi:speaker", keys: ["media_playing_n", "media_playing_n", "media_idle"] },
+  climate: { icon: "mdi:thermostat", iconOff: "mdi:thermostat", keys: ["climate_on", "climate_on_n", "climate_off"] },
+  batteries: { icon: "mdi:battery-alert-variant-outline", iconOff: "mdi:battery", keys: ["battery_low", "batteries_low", "batteries_ok"] },
+};
+
+/** Colour only means state (the family rule): a problem, needs a look, lights on, or no colour at all. */
+const TONE_COLOR: Record<PulseTone, string> = {
+  "": "var(--secondary-text-color)",
+  on: "var(--hpc-amber)",
+  warn: "var(--hpc-orange)",
+  bad: "var(--hpc-red)",
 };
 
 const ALARM_ICONS: Record<string, string> = {
@@ -93,17 +106,18 @@ const ALARM_BUTTON_ICONS: Record<AlarmMode | "disarm", string> = {
   disarm: "mdi:shield-off",
 };
 
+/** Sun in the gold, the moon in the night glow; rain, storms and snow in their meaning. The rest stays neutral. */
 const WEATHER_COLORS: Record<string, string> = {
-  sunny: "var(--hpc-amber)",
-  partlycloudy: "var(--hpc-amber)",
-  "clear-night": "var(--hpc-light-blue)",
+  sunny: "var(--hpc-sun)",
+  partlycloudy: "var(--hpc-sun)",
+  "clear-night": "var(--hpc-moon)",
   rainy: "var(--hpc-blue)",
   pouring: "var(--hpc-blue)",
-  lightning: "var(--hpc-purple)",
-  "lightning-rainy": "var(--hpc-purple)",
-  snowy: "var(--hpc-light-blue)",
-  "snowy-rainy": "var(--hpc-light-blue)",
-  hail: "var(--hpc-light-blue)",
+  lightning: "var(--hpc-orange)",
+  "lightning-rainy": "var(--hpc-orange)",
+  snowy: "var(--hpc-cold)",
+  "snowy-rainy": "var(--hpc-cold)",
+  hail: "var(--hpc-cold)",
 };
 const weatherColor = (condition: string) => WEATHER_COLORS[condition] ?? "var(--secondary-text-color)";
 
@@ -159,6 +173,10 @@ export class HomePulseCard extends LitElement {
   private _calendars: string[] = [];
   private _watched = new Set<string>();
   private _ticker?: number;
+  /** Today's forecast for the weather entity, from HA's forecast subscription. */
+  private _forecast?: ForecastItem[];
+  private _forecastFor?: string;
+  private _forecastUnsub?: Promise<(() => void) | undefined>;
 
   // ---- Lovelace API -------------------------------------------------------
 
@@ -170,10 +188,10 @@ export class HomePulseCard extends LitElement {
     // Navigation first; views that don't exist yet are easy to rename in the editor.
     return {
       shortcuts: [
-        { name: "Lights", icon: "mdi:lightbulb-group", color: "amber", navigation_path: "lights", badge: "lights" },
-        { name: "Climate", icon: "mdi:thermostat", color: "deep-orange", navigation_path: "climate" },
-        { name: "Security", icon: "mdi:shield-half-full", color: "blue", navigation_path: "security" },
-        { name: "Energy", icon: "mdi:lightning-bolt", color: "teal", navigation_path: "/energy" },
+        { name: "Lights", icon: "mdi:lightbulb-group", navigation_path: "lights", badge: "lights" },
+        { name: "Climate", icon: "mdi:thermostat", navigation_path: "climate" },
+        { name: "Security", icon: "mdi:shield-half-full", navigation_path: "security" },
+        { name: "Energy", icon: "mdi:lightning-bolt", navigation_path: "/energy" },
       ],
     };
   }
@@ -217,6 +235,37 @@ export class HomePulseCard extends LitElement {
     super.disconnectedCallback();
     if (this._ticker) window.clearInterval(this._ticker);
     window.removeEventListener("dialog-closed", this._onDialogClosed);
+    this._unsubscribeForecast();
+  }
+
+  /** Follow the weather entity's forecast while the card shows the weather; one subscription at a time. */
+  private _syncForecast() {
+    const hass = this.hass;
+    const sections = this._config?.sections ?? DEFAULT_SECTIONS;
+    const shown = sections.includes("greeting") || sections.includes("status");
+    const entity = shown && this.isConnected ? this._weather : undefined;
+    const type = entity ? forecastType(hass?.states[entity]) : undefined;
+    const key = entity && type ? `${entity}|${type}` : undefined;
+    if (key === this._forecastFor) return;
+    this._unsubscribeForecast();
+    if (!key || !hass?.connection) return;
+    this._forecastFor = key;
+    this._forecastUnsub = hass.connection
+      .subscribeMessage<{ forecast?: ForecastItem[] }>(
+        (msg) => {
+          this._forecast = Array.isArray(msg?.forecast) ? msg.forecast : undefined;
+          this.requestUpdate();
+        },
+        { type: "weather/subscribe_forecast", forecast_type: type, entity_id: entity }
+      )
+      .catch(() => undefined); // an integration without forecasts just shows no range
+  }
+
+  private _unsubscribeForecast() {
+    this._forecastUnsub?.then((unsub) => unsub?.());
+    this._forecastUnsub = undefined;
+    this._forecastFor = undefined;
+    this._forecast = undefined;
   }
 
   protected shouldUpdate(changed: PropertyValues): boolean {
@@ -270,6 +319,7 @@ export class HomePulseCard extends LitElement {
   }
 
   protected updated(): void {
+    this._syncForecast();
     this._checkStatusOverflow();
     const dialog = this.renderRoot.querySelector<HTMLDialogElement>("dialog.hpc-popup");
     if (dialog && !dialog.open) {
@@ -433,13 +483,20 @@ export class HomePulseCard extends LitElement {
     `;
   }
 
-  /** Large, quiet weather beside the greeting: icon and temperature, condition underneath. */
+  /** Large, quiet weather beside the greeting: icon and temperature, condition and today's high and low underneath. */
   private _renderWeather(s: HassEntity) {
     const temp = weatherTemp(s);
+    const type = forecastType(s);
+    const range = type && this._forecastFor?.startsWith(`${s.entity_id}|`) ? todayRange(this._forecast, type) : undefined;
+    const rangeText = range
+      ? range.low === undefined
+        ? this._t("weather_high", { high: `${range.high}°` })
+        : this._t("weather_range", { high: `${range.high}°`, low: `${range.low}°` })
+      : "";
     return html`
       <button
         class="weather"
-        title=${this._format(s)}
+        title=${rangeText ? `${this._format(s)} · ${rangeText}` : this._format(s)}
         style=${styleMap({ "--c": weatherColor(s.state) })}
         @click=${() => this._moreInfo(s.entity_id)}
       >
@@ -447,6 +504,12 @@ export class HomePulseCard extends LitElement {
           <ha-icon .icon=${weatherIcon(s.state)}></ha-icon>${temp ? html`<span class="temp">${temp}</span>` : nothing}
         </span>
         <span class="weather-cond">${this._format(s)}</span>
+        ${range
+          ? html`<span class="weather-range" aria-label=${rangeText}>
+              <span><ha-icon icon="mdi:arrow-up"></ha-icon>${range.high}°</span>
+              ${range.low !== undefined ? html`<span><ha-icon icon="mdi:arrow-down"></ha-icon>${range.low}°</span>` : nothing}
+            </span>`
+          : nothing}
       </button>
     `;
   }
@@ -616,21 +679,26 @@ export class HomePulseCard extends LitElement {
   private _renderNudgeBlock(index: HomeIndex) {
     if (this._config!.nudges === false) return nothing;
     const hass = this.hass!;
-    const groups = pulseGroups(hass, { ...this._config!, pulse: ["lights", "media"] }, index);
+    const groups = pulseGroups(hass, { ...this._config!, pulse: NUDGE_GROUPS }, index);
     const hints: Nudge[] = nudges(hass, this._persons, groups, this._alarm);
     return hints.length ? this._renderNudges(hints) : nothing;
   }
 
   /** All "nobody is home" hints in one banner, each with its own fix. */
   private _renderNudges(list: Nudge[]) {
-    const what = list.map((n) =>
-      n.id === "away_lights"
-        ? this._t(n.n === 1 ? "light_on" : "lights_on_n", { n: n.n })
-        : n.id === "away_media"
-        ? this._t("media_playing_n", { n: n.n })
-        : this._t("nudge_away_alarm")
-    );
+    const words: Record<Nudge["id"], [string, string]> = {
+      away_doors: ["door_open", "doors_open"],
+      away_windows: ["window_open", "windows_open"],
+      away_locks: ["nudge_unlocked", "nudge_unlocked_n"],
+      away_lights: ["light_on", "lights_on_n"],
+      away_media: ["media_playing_n", "media_playing_n"],
+      away_alarm: ["nudge_away_alarm", "nudge_away_alarm"],
+    };
+    const what = list.map((n) => this._t(words[n.id][n.n === 1 ? 0 : 1], { n: n.n }));
     const fixes: Record<Nudge["id"], { key: string; icon: string }> = {
+      away_doors: { key: "nudge_fix_doors", icon: "mdi:door-open" },
+      away_windows: { key: "nudge_fix_windows", icon: "mdi:window-open-variant" },
+      away_locks: { key: "nudge_fix_locks", icon: "mdi:lock" },
       away_lights: { key: "nudge_fix_lights", icon: "mdi:lightbulb-group-off-outline" },
       away_media: { key: "nudge_fix_media", icon: "mdi:pause" },
       away_alarm: { key: "nudge_fix_alarm", icon: "mdi:shield-lock" },
@@ -643,7 +711,13 @@ export class HomePulseCard extends LitElement {
           <div class="nudge-what">${what.join(" · ")}</div>
           <div class="nudge-fixes">
             ${list.map(
-              (n) => html`<button class="fix" @click=${() => this._fireAction({ entity: n.entities[0], tap_action: n.action }, "tap")}>
+              (n) => html`<button
+                class="fix"
+                @click=${() =>
+                  n.popup
+                    ? this._groupClick({ id: n.popup, entities: n.entities, active: n.entities })
+                    : this._fireAction({ entity: n.entities[0], tap_action: n.action }, "tap")}
+              >
                 <ha-icon .icon=${fixes[n.id].icon}></ha-icon>${this._t(fixes[n.id].key)}
               </button>`
             )}
@@ -659,8 +733,8 @@ export class HomePulseCard extends LitElement {
     const label = this._t(n === 0 ? meta.keys[2] : n === 1 ? meta.keys[0] : meta.keys[1], { n });
     return html`
       <button
-        class=${classMap({ chip: true, active: n > 0 })}
-        style=${styleMap({ "--c": this._groupColor(g.id) })}
+        class=${classMap({ chip: true, active: n > 0, idle: n === 0 })}
+        style=${styleMap({ "--c": TONE_COLOR[pulseTone(g.id)] })}
         @click=${() => this._groupClick(g)}
       >
         <ha-icon .icon=${n ? meta.icon : meta.iconOff}></ha-icon>
@@ -669,8 +743,10 @@ export class HomePulseCard extends LitElement {
     `;
   }
 
+  /** Popup colour: the group's tone, or the accent for groups whose state carries no colour. */
   private _groupColor(id: PulseId): string {
-    return PULSE_META[id].color;
+    const tone = pulseTone(id);
+    return tone ? TONE_COLOR[tone] : "var(--hpc-accent)";
   }
 
   private _renderShortcuts(index: HomeIndex) {
@@ -708,7 +784,13 @@ export class HomePulseCard extends LitElement {
           ? html`<ha-icon .icon=${sc.icon ?? "mdi:gesture-tap-button"}></ha-icon>`
           : html`<ha-state-icon .hass=${hass} .stateObj=${entityState}></ha-state-icon>`}
         ${showName ? html`<span class="name">${name}</span>` : nothing}
-        ${badge ? html`<span class="badge">${badge}</span>` : nothing}
+        ${badge
+          ? html`<span
+              class=${classMap({ badge: true, toned: !!badgeTone(sc) })}
+              style=${styleMap(badgeTone(sc) ? { "--t": TONE_COLOR[badgeTone(sc)] } : {})}
+              >${badge}</span
+            >`
+          : nothing}
       </button>
     `;
   }

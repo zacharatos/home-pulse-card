@@ -59,6 +59,10 @@ export interface HomeAssistant {
   ) => Promise<unknown>;
   formatEntityState?: (stateObj: HassEntity, state?: string) => string;
   formatEntityAttributeValue?: (stateObj: HassEntity, attribute: string, value?: unknown) => string;
+  /** The websocket, for subscriptions (the weather forecast). */
+  connection?: {
+    subscribeMessage: <T>(callback: (msg: T) => void, msg: Record<string, unknown>) => Promise<() => void>;
+  };
 }
 
 /** Native Home Assistant action config (subset). Passed through untouched to HA. */

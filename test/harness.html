@@ -101,7 +101,7 @@
     add("person.sam", away ? "not_home" : "Work", { friendly_name: "Sam" });
     add("person.nikos", "home", { friendly_name: "Nikos" }, 5, { hidden: away });
     add("sun.sun", night ? "below_horizon" : "above_horizon", { friendly_name: "Sun" });
-    add("weather.home", variant === "alert" ? "rainy" : night ? "clear-night" : "sunny", { friendly_name: "Home", temperature: 24.8, temperature_unit: "°C" });
+    add("weather.home", variant === "alert" ? "rainy" : night ? "clear-night" : "sunny", { friendly_name: "Home", temperature: 24.8, temperature_unit: "°C", supported_features: 1 });
     add(
       "alarm_control_panel.house",
       variant === "alert" ? "armed_away" : "disarmed",
@@ -117,7 +117,7 @@
     add("binary_sensor.bedroom_window", variant === "alert" ? "on" : "off", { friendly_name: "Bedroom Window", device_class: "window" }, 70, { area_id: "bedroom" });
     add("binary_sensor.front_door", "off", { friendly_name: "Front Door", device_class: "door" }, 600);
     add("binary_sensor.kitchen_leak", variant === "alert" ? "on" : "off", { friendly_name: "Kitchen Sink Leak", device_class: "moisture" }, 2, { area_id: "kitchen" });
-    add("lock.front", variant === "alert" ? "unlocked" : "locked", { friendly_name: "Front Door Lock" }, 30);
+    add("lock.front", variant === "alert" || away ? "unlocked" : "locked", { friendly_name: "Front Door Lock" }, 30);
     add("media_player.living", away || variant === "home" ? "playing" : "idle", { friendly_name: "Living Room Speaker", media_title: "Pidao Ta Kimata" }, 8, { area_id: "living" });
     add("climate.living_ac", "cool", { friendly_name: "Living Room AC", hvac_action: variant === "alert" ? "cooling" : "idle" }, 60, { area_id: "living" });
     add("sensor.remote_battery", variant === "alert" ? "11" : "64", { friendly_name: "TV Remote Battery", device_class: "battery", unit_of_measurement: "%" }, 60, { entity_category: "diagnostic" });
@@ -154,24 +154,40 @@
       locale: { language: lang, time_format: "24" },
       themes: { darkMode: document.body.classList.contains("dark") },
       callService: async (...a) => log("callService", a),
+      // Today's forecast for weather.home (daily), the way HA answers weather/subscribe_forecast.
+      connection: {
+        subscribeMessage: async (cb, msg) => {
+          if (msg.type === "weather/subscribe_forecast") {
+            const day = (o) => { const d = new Date(now); d.setDate(d.getDate() + o); d.setHours(12, 0, 0, 0); return d.toISOString(); };
+            setTimeout(() => cb({ type: msg.forecast_type, forecast: [
+              { datetime: day(0), temperature: variant === "alert" ? 21.2 : 27.4, templow: variant === "alert" ? 15.6 : 17.8, condition: "sunny" },
+              { datetime: day(1), temperature: 25, templow: 16, condition: "partlycloudy" },
+            ] }), 20);
+          }
+          return () => {};
+        },
+      },
       formatEntityState: lang === "en" ? fmt : undefined,
     };
   }
 
+  // No colours: the accent on every icon, colour only in the badges that mean something.
   const shortcuts = [
-    { name: "Lights", icon: "mdi:lightbulb-group", color: "amber", navigation_path: "lights", badge: "lights" },
+    { name: "Lights", icon: "mdi:lightbulb-group", navigation_path: "lights", badge: "lights" },
     { name: "Devices", icon: "mdi:devices", navigation_path: "devices" },
-    { name: "Security", icon: "mdi:shield-half-full", color: "blue", navigation_path: "security" },
-    { name: "3D printer", icon: "mdi:printer-3d", color: "pink", navigation_path: "printer" },
-    { name: "Media", icon: "mdi:music-box-multiple", color: "cyan", navigation_path: "media", badge: "media" },
-    { name: "Energy", icon: "mdi:chart-timeline-variant-shimmer", color: "teal", navigation_path: "/energy" },
-    { name: "Tasks", icon: "mdi:format-list-checks", color: "orange", navigation_path: "todo", badge: "sensor.todo_open" },
+    { name: "Security", icon: "mdi:shield-half-full", navigation_path: "security", badge: "locks" },
+    { name: "3D printer", icon: "mdi:printer-3d", navigation_path: "printer", entity: "switch.vacuum_dock" },
+    { name: "Media", icon: "mdi:music-box-multiple", navigation_path: "media", badge: "media" },
+    { name: "Energy", icon: "mdi:chart-timeline-variant-shimmer", navigation_path: "/energy" },
+    { name: "Tasks", icon: "mdi:format-list-checks", navigation_path: "todo", badge: "sensor.todo_open" },
   ];
+  // Explicit colours are still honoured.
+  const colourful = shortcuts.map((sc, i) => ({ ...sc, color: ["amber", undefined, "blue", "pink", "cyan", "teal", "orange"][i] }));
 
   const scenarios = [
     { col: 0, cap: "Default by day: Today line from calendars, modes from input_select.house_mode", variant: "home", config: { shortcuts } },
     { col: 0, cap: "Night: moon glow, Night mode lit", variant: "home", night: true, config: { shortcuts: shortcuts.slice(0, 5) } },
-    { col: 1, cap: "Everyone away: hint banner, Away mode lit", variant: "away", config: { shortcuts: shortcuts.slice(0, 4) } },
+    { col: 1, cap: "Everyone away: window open, door unlocked, lights on → one hint with its fixes", variant: "away", config: { shortcuts: shortcuts.slice(0, 4) } },
     {
       col: 1,
       cap: "Modes from scenes (last one run is lit), waste sensor in Today",
@@ -189,11 +205,17 @@
     },
     {
       col: 2,
-      cap: "Flat, centred, icon-only shortcuts",
+      cap: "Flat, centred, icon-only shortcuts with their own colours",
       variant: "home",
-      config: { appearance: "flat", center_greeting: true, title: "Hello {name}", show_date: false, show_names: false, shortcuts },
+      config: { appearance: "flat", center_greeting: true, title: "Hello {name}", show_date: false, show_names: false, shortcuts: colourful },
     },
     { col: 2, cap: "Leak tripped, alarm armed, compact", variant: "alert", config: { layout: "compact", shortcuts: shortcuts.slice(0, 5) } },
+    {
+      col: 0,
+      cap: "Opt-in blocks: alarm panel and home pulse (colour only for problems, openings and lights)",
+      variant: "alert",
+      config: { sections: ["status", "alarm", "pulse"], pulse: ["alerts", "lights", "windows", "locks", "media", "climate", "batteries"], show_inactive: true },
+    },
   ];
 
   const logEl = document.getElementById("log");

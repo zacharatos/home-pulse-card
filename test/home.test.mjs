@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   alarmView,
   areaName,
+  badgeTone,
   balanceRows,
   byArea,
   discoverOne,
@@ -12,8 +13,10 @@ import {
   greetingKey,
   isNight,
   indexHome,
+  NUDGE_GROUPS,
   nudges,
   pulseGroups,
+  pulseTone,
   resolveNavigationPath,
   shortcutBadge,
   shortcutTapAction,
@@ -153,15 +156,45 @@ test("alarm: arm buttons filtered by support, disarm when armed, code opens the 
 test("nudges only when everyone tracked is away", () => {
   const hass = fixture();
   const idx = indexHome(hass, {});
-  const groups = pulseGroups(hass, {}, idx);
+  const groups = pulseGroups(hass, { pulse: NUDGE_GROUPS }, idx);
   assert.deepEqual(nudges(hass, ["person.alex", "person.sam"], groups, "alarm_control_panel.house"), []);
   hass.states["person.alex"] = { ...hass.states["person.alex"], state: "Work" };
   const n = nudges(hass, ["person.alex", "person.sam"], groups, "alarm_control_panel.house");
-  assert.deepEqual(n.map((x) => x.id), ["away_lights", "away_media", "away_alarm"]);
-  assert.equal(n[0].n, 2);
-  assert.deepEqual(n[0].action.target, { entity_id: ["light.desk", "light.kitchen"] });
-  assert.equal(n[2].action.perform_action, "alarm_control_panel.alarm_arm_away");
+  assert.deepEqual(n.map((x) => x.id), ["away_windows", "away_lights", "away_media", "away_alarm"]);
+  // An open window can't be fixed from afar: it shows which one instead of running an action.
+  assert.equal(n[0].popup, "windows");
+  assert.equal(n[0].action, undefined);
+  assert.deepEqual(n[0].entities, ["binary_sensor.kitchen_window"]);
+  assert.equal(n[1].n, 2);
+  assert.deepEqual(n[1].action.target, { entity_id: ["light.desk", "light.kitchen"] });
+  assert.equal(n[3].action.perform_action, "alarm_control_panel.alarm_arm_away");
   assert.deepEqual(nudges(hass, [], groups), []); // nobody tracked: can't tell
+});
+
+test("nudges lock only the unlocked locks, safety first", () => {
+  const hass = fixture();
+  hass.states["person.alex"] = { ...hass.states["person.alex"], state: "not_home" };
+  hass.states["lock.front"] = { ...hass.states["lock.front"], state: "unlocked" };
+  hass.states["binary_sensor.front_door"] = { ...hass.states["binary_sensor.front_door"], state: "on" };
+  const idx = indexHome(hass, {});
+  const n = nudges(hass, ["person.alex", "person.sam"], pulseGroups(hass, { pulse: NUDGE_GROUPS }, idx));
+  assert.deepEqual(n.map((x) => x.id), ["away_doors", "away_windows", "away_locks", "away_lights", "away_media"]);
+  const locks = n.find((x) => x.id === "away_locks");
+  assert.deepEqual(locks.action, { action: "perform-action", perform_action: "lock.lock", target: { entity_id: ["lock.front"] } });
+});
+
+test("tones: colour only for problems, openings and lights", () => {
+  assert.equal(pulseTone("alerts"), "bad");
+  assert.equal(pulseTone("batteries"), "bad");
+  assert.equal(pulseTone("locks"), "bad");
+  assert.equal(pulseTone("windows"), "warn");
+  assert.equal(pulseTone("doors"), "warn");
+  assert.equal(pulseTone("lights"), "on");
+  for (const id of ["media", "covers", "fans", "switches", "climate"]) assert.equal(pulseTone(id), "", id);
+  assert.equal(badgeTone({ badge: "lights" }), "on");
+  assert.equal(badgeTone({ badge: "media" }), "");
+  assert.equal(badgeTone({ badge: "sensor.todo_open" }), "");
+  assert.equal(badgeTone({}), "");
 });
 
 test("shortcut rows are balanced, fuller rows first", () => {
@@ -212,7 +245,7 @@ test("watched entities cover people, extras, chips, shortcuts and pulse groups",
   );
   for (const id of ["person.alex", "weather.home", "sensor.power", "lock.front", "binary_sensor.kitchen_window", "light.kitchen", "media_player.tv", "sensor.remote_battery"])
     assert.ok(w.has(id), id);
-  assert.ok(!w.has("binary_sensor.front_door"));
+  assert.ok(!w.has("climate.ac")); // nothing on the card shows climate
 });
 
 test("default blocks only watch what they show", () => {
@@ -221,8 +254,11 @@ test("default blocks only watch what they show", () => {
   const w = watchedEntities({}, idx, ["person.alex"], []);
   assert.ok(w.has("binary_sensor.leak")); // alerts block
   assert.ok(w.has("light.kitchen")); // nudges watch lights
-  assert.ok(w.has("media_player.tv")); // ... and media
-  assert.ok(!w.has("binary_sensor.kitchen_window"));
+  assert.ok(w.has("media_player.tv")); // ... media
+  assert.ok(w.has("binary_sensor.kitchen_window")); // ... and openings and locks
+  assert.ok(w.has("lock.front"));
+  assert.ok(!w.has("climate.ac"));
+  assert.ok(!w.has("binary_sensor.motion"));
   const withBadge = watchedEntities({ shortcuts: [{ badge: "lights" }] }, idx, [], []);
   assert.ok(withBadge.has("light.kitchen"));
 });
@@ -240,4 +276,5 @@ test("nudges off: lights are not watched without a pulse block", () => {
   const hass = fixture();
   const w = watchedEntities({ nudges: false }, indexHome(hass, {}), [], []);
   assert.ok(!w.has("light.kitchen"));
+  assert.ok(!w.has("binary_sensor.kitchen_window"));
 });
