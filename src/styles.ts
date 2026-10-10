@@ -747,6 +747,24 @@ export const cardStyles = css`
   .shortcut.active:hover {
     background: var(--hpc-neutral-strong);
   }
+  /* Flat (the shortcuts card's default): every tile is drawn like a native tile card, with the theme's
+     card fill, edge, shadow and blur, so the row sits in a section like HA's own tiles. */
+  :host([appearance="flat"]) .shortcut {
+    --hpc-tile-bg: var(--ha-card-background, var(--card-background-color, #fff));
+    background: var(--hpc-tile-bg);
+    border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
+    border-radius: var(--hpc-radius);
+    box-shadow: var(--ha-card-box-shadow, none);
+    -webkit-backdrop-filter: var(--ha-card-backdrop-filter, none);
+    backdrop-filter: var(--ha-card-backdrop-filter, none);
+  }
+  :host([appearance="flat"]) .shortcut:hover {
+    background: linear-gradient(var(--hpc-neutral-bg), var(--hpc-neutral-bg)), var(--hpc-tile-bg);
+  }
+  :host([appearance="flat"]) .shortcut.active,
+  :host([appearance="flat"]) .shortcut.active:hover {
+    background: linear-gradient(var(--hpc-neutral-strong), var(--hpc-neutral-strong)), var(--hpc-tile-bg);
+  }
   .shortcut .name {
     max-width: 100%;
     font-size: 13px;
@@ -783,6 +801,22 @@ export const cardStyles = css`
   .badge.toned {
     color: color-mix(in srgb, var(--t) 70%, var(--primary-text-color));
     background: color-mix(in srgb, var(--t) 26%, var(--ha-card-background, var(--card-background-color, #fff)));
+  }
+
+  /* Home Pulse Shortcuts with nothing configured yet: a normal card, even when flat. */
+  :host([appearance="flat"]) ha-card.empty-card {
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+    border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
+    box-shadow: var(--ha-card-box-shadow, none);
+  }
+  .empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    font-size: 14px;
+    color: var(--secondary-text-color);
+    --mdc-icon-size: 20px;
   }
 
   .warning {

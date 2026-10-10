@@ -184,12 +184,18 @@
   // Explicit colours are still honoured.
   const colourful = shortcuts.map((sc, i) => ({ ...sc, color: ["amber", undefined, "blue", "pink", "cyan", "teal", "orange"][i] }));
 
+  // `tag` picks the card: the overview (default) or Home Pulse Shortcuts.
+  const SC = "home-pulse-shortcuts-card";
   const scenarios = [
-    { col: 0, cap: "Default by day: Today line from calendars, modes from input_select.house_mode", variant: "home", config: { shortcuts } },
-    { col: 0, cap: "Night: moon glow, Night mode lit", variant: "home", night: true, config: { shortcuts: shortcuts.slice(0, 5) } },
-    { col: 1, cap: "Everyone away: window open, door unlocked, lights on → one hint with its fixes", variant: "away", config: { shortcuts: shortcuts.slice(0, 4) } },
+    { col: 0, cap: "Overview + Home Pulse Shortcuts (flat: tiles like native tile cards), the split as a dashboard uses it", variant: "home", config: {} },
+    { col: 0, tag: SC, variant: "home", config: { shortcuts } },
+    { col: 0, cap: "Home Pulse Shortcuts as one card, icon-only, 5 per row", tag: SC, variant: "alert", config: { appearance: "card", show_names: false, columns: 5, shortcuts: shortcuts.slice(0, 5) } },
+    { col: 0, cap: "Home Pulse Shortcuts with nothing configured", tag: SC, variant: "home", config: {} },
+    { col: 1, cap: "Overview with shortcuts in its own config (still supported)", variant: "home", config: { shortcuts } },
+    { col: 1, cap: "Night: moon glow, Night mode lit", variant: "home", night: true, config: { shortcuts: shortcuts.slice(0, 5) } },
+    { col: 2, cap: "Everyone away: window open, door unlocked, lights on → one hint with its fixes", variant: "away", config: {} },
     {
-      col: 1,
+      col: 2,
       cap: "Modes from scenes (last one run is lit), waste sensor in Today",
       variant: "home",
       config: {
@@ -200,7 +206,6 @@
           { entity: "scene.dinner", color: "deep-orange" },
           { entity: "scene.goodnight", icon: "mdi:weather-night", color: "indigo" },
         ],
-        shortcuts: shortcuts.slice(0, 4),
       },
     },
     {
@@ -211,7 +216,7 @@
     },
     { col: 2, cap: "Leak tripped, alarm armed, compact", variant: "alert", config: { layout: "compact", shortcuts: shortcuts.slice(0, 5) } },
     {
-      col: 0,
+      col: 1,
       cap: "Opt-in blocks: alarm panel and home pulse (colour only for problems, openings and lights)",
       variant: "alert",
       config: { sections: ["status", "alarm", "pulse"], pulse: ["alerts", "lights", "windows", "locks", "media", "climate", "batteries"], show_inactive: true },
@@ -224,9 +229,10 @@
   const cols = [...document.querySelectorAll(".col")];
   for (const s of scenarios) {
     const wrap = document.createElement("div");
-    wrap.innerHTML = `<p class="cap">${s.cap}</p>`;
-    const card = document.createElement("home-pulse-card");
-    card.setConfig({ type: "custom:home-pulse-card", ...s.config });
+    wrap.innerHTML = s.cap ? `<p class="cap">${s.cap}</p>` : "";
+    const tag = s.tag ?? "home-pulse-card";
+    const card = document.createElement(tag);
+    card.setConfig({ type: `custom:${tag}`, ...s.config });
     card.hass = makeHass(s.variant, s.night);
     card.addEventListener("hass-action", (e) => log("hass-action", e.detail.action, e.detail.config[`${e.detail.action}_action`]));
     card.addEventListener("hass-more-info", (e) => log("more-info", e.detail.entityId));

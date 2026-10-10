@@ -52,6 +52,8 @@ function clean<T extends Record<string, unknown>>(obj: T): T {
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export class HomePulseCardEditor extends LitElement {
+  /** `overview` edits Home Pulse Card; `shortcuts` edits Home Pulse Shortcuts (its subclass below). */
+  protected kind: "overview" | "shortcuts" = "overview";
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _config?: HomePulseCardConfig;
   /** Open list items, as "shortcuts:2" / "modes:0". */
@@ -69,34 +71,59 @@ export class HomePulseCardEditor extends LitElement {
 
   private _t = (key: string, vars?: Record<string, string | number>) => localize(this.hass, key, vars);
 
+  /** Defaults left out of the YAML: the shortcuts card is flat unless asked otherwise. */
+  private get _defaults(): Record<string, unknown> {
+    return this.kind === "shortcuts" ? { ...DEFAULTS, appearance: "flat" } : DEFAULTS;
+  }
+
+  private _hasShortcuts(): boolean {
+    return !!this._config?.shortcuts?.length;
+  }
+
+  private _layoutGrid(): Schema {
+    const t = this._t;
+    const select = (options: { value: string; label: string }[]) => ({ select: { mode: "dropdown", options } });
+    const tiles = this.kind === "shortcuts";
+    return {
+      type: "grid",
+      name: "",
+      schema: [
+        {
+          name: "layout",
+          selector: select([
+            { value: "default", label: t("ed_layout_default") },
+            { value: "compact", label: t("ed_layout_compact") },
+          ]),
+        },
+        {
+          name: "appearance",
+          selector: select([
+            { value: "card", label: t(tiles ? "ed_appearance_one_card" : "ed_appearance_card") },
+            { value: "flat", label: t(tiles ? "ed_appearance_tiles" : "ed_appearance_flat") },
+          ]),
+        },
+      ],
+    };
+  }
+
+  private _tileGrid(): Schema {
+    return {
+      type: "grid",
+      name: "",
+      schema: [
+        { name: "columns", selector: { number: { min: 1, max: 8, mode: "slider" } } },
+        { name: "show_names", selector: { boolean: {} } },
+      ],
+    };
+  }
+
   // ---- Schemas ------------------------------------------------------------
 
   private _mainSchema(): Schema[] {
     const t = this._t;
-    const select = (options: { value: string; label: string }[], extra: Record<string, unknown> = {}) => ({
-      select: { mode: "dropdown", options, ...extra },
-    });
+    if (this.kind === "shortcuts") return [this._layoutGrid(), this._tileGrid()];
     return [
-      {
-        type: "grid",
-        name: "",
-        schema: [
-          {
-            name: "layout",
-            selector: select([
-              { value: "default", label: t("ed_layout_default") },
-              { value: "compact", label: t("ed_layout_compact") },
-            ]),
-          },
-          {
-            name: "appearance",
-            selector: select([
-              { value: "card", label: t("ed_appearance_card") },
-              { value: "flat", label: t("ed_appearance_flat") },
-            ]),
-          },
-        ],
-      },
+      this._layoutGrid(),
       {
         name: "sections",
         selector: {
@@ -211,14 +238,8 @@ export class HomePulseCardEditor extends LitElement {
           { name: "exclude_entities", selector: { entity: { multiple: true } } },
         ],
       },
-      {
-        type: "grid",
-        name: "",
-        schema: [
-          { name: "columns", selector: { number: { min: 1, max: 8, mode: "slider" } } },
-          { name: "show_names", selector: { boolean: {} } },
-        ],
-      },
+      // Shortcuts configured on the overview keep working (and keep their options) until they are moved.
+      ...(this._hasShortcuts() ? [this._tileGrid()] : []),
     ];
   }
 
@@ -300,9 +321,10 @@ export class HomePulseCardEditor extends LitElement {
 
   private _formData(): Record<string, unknown> {
     const c = this._config!;
+    if (this.kind === "shortcuts") return { ...this._defaults, ...c };
     const today = typeof c.today === "object" ? c.today : {};
     return {
-      ...DEFAULTS,
+      ...this._defaults,
       ...c,
       today_show: c.today !== false,
       today_tomorrow: today.tomorrow !== false,
@@ -331,10 +353,15 @@ export class HomePulseCardEditor extends LitElement {
   private _mainChanged(ev: CustomEvent) {
     ev.stopPropagation();
     const v = { ...ev.detail.value } as Record<string, unknown>;
+    if (this.kind === "shortcuts") {
+      for (const [k, d] of Object.entries(this._defaults)) if (same(v[k], d)) delete v[k];
+      this._commit(clean({ ...v, shortcuts: this._config?.shortcuts }) as unknown as HomePulseCardConfig);
+      return;
+    }
     const today = this._todayFrom(v);
     for (const k of ["today_show", "today_tomorrow", "today_calendars", "today_entities"]) delete v[k];
     // Drop defaults so the YAML only says what the user changed.
-    for (const [k, d] of Object.entries(DEFAULTS)) if (same(v[k], d)) delete v[k];
+    for (const [k, d] of Object.entries(this._defaults)) if (same(v[k], d)) delete v[k];
     const next = clean({
       ...v,
       today,
@@ -402,9 +429,8 @@ export class HomePulseCardEditor extends LitElement {
 
   protected render() {
     if (!this.hass || !this._config || !this._ready) return nothing;
-    const shortcuts = (this._config.shortcuts ?? []) as ShortcutConfig[];
     const modes = (this._config.modes ?? []) as ModeConfig[];
-    return html`
+    const form = html`
       <ha-form
         .hass=${this.hass}
         .data=${this._formData()}
@@ -412,6 +438,10 @@ export class HomePulseCardEditor extends LitElement {
         .computeLabel=${this._label}
         @value-changed=${this._mainChanged}
       ></ha-form>
+    `;
+    if (this.kind === "shortcuts") return html`${form}${this._renderShortcutList()}`;
+    return html`
+      ${form}
       ${this._config.chips?.length ? nothing : html`<p class="hint">${this._t("ed_chips_yaml")}</p>`}
 
       <div class="section">
@@ -425,8 +455,22 @@ export class HomePulseCardEditor extends LitElement {
         </button>
       </div>
 
+      ${this._hasShortcuts()
+        ? this._renderShortcutList(this._t("ed_shortcuts_move"))
+        : html`<div class="section">
+            <div class="section-title"><ha-icon icon="mdi:view-grid-outline"></ha-icon>${this._t("ed_section_shortcuts")}</div>
+            <p class="hint">${this._t("ed_shortcuts_own_card")}</p>
+          </div>`}
+    `;
+  }
+
+  /** The reorderable shortcut list, shared by both editors. */
+  private _renderShortcutList(hint?: string) {
+    const shortcuts = (this._config?.shortcuts ?? []) as ShortcutConfig[];
+    return html`
       <div class="section">
         <div class="section-title"><ha-icon icon="mdi:view-grid-outline"></ha-icon>${this._t("ed_section_shortcuts")}</div>
+        ${hint ? html`<p class="hint">${hint}</p>` : nothing}
         ${shortcuts.map((sc, i) =>
           this._renderItem(
             "shortcuts",
@@ -525,6 +569,12 @@ export class HomePulseCardEditor extends LitElement {
   `;
 }
 
+/** Editor of Home Pulse Shortcuts: layout, tiles per row, names, and the shortcut list. */
+export class HomePulseShortcutsCardEditor extends HomePulseCardEditor {
+  protected kind: "overview" | "shortcuts" = "shortcuts";
+}
+
 if (!customElements.get("home-pulse-card-editor")) {
   customElements.define("home-pulse-card-editor", HomePulseCardEditor);
+  customElements.define("home-pulse-shortcuts-card-editor", HomePulseShortcutsCardEditor);
 }

@@ -55,7 +55,7 @@ import { cardStyles } from "./styles";
 import { popupStyles } from "./popup-styles";
 import "./editor";
 
-const VERSION = "0.1.0";
+const VERSION = "1.3.0";
 
 interface CardHelpers {
   createCardElement: (config: Record<string, unknown>) => HTMLElement | Promise<HTMLElement>;
@@ -149,7 +149,7 @@ export class HomePulseCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ reflect: true }) layout: "default" | "compact" = "default";
   @property({ reflect: true }) appearance: "card" | "flat" = "card";
-  @state() private _config?: HomePulseCardConfig;
+  @state() protected _config?: HomePulseCardConfig;
   /** Pulse group shown in the popup. */
   @state() private _popup?: PulseId;
   /** Native tiles for the popup; null means HA's card helpers are unavailable and fallback tiles are drawn. */
@@ -184,16 +184,9 @@ export class HomePulseCard extends LitElement {
     return document.createElement("home-pulse-card-editor");
   }
 
+  /** Zero config: everything is discovered. Shortcuts have their own card (Home Pulse Shortcuts). */
   static getStubConfig(): Partial<HomePulseCardConfig> {
-    // Navigation first; views that don't exist yet are easy to rename in the editor.
-    return {
-      shortcuts: [
-        { name: "Lights", icon: "mdi:lightbulb-group", navigation_path: "lights", badge: "lights" },
-        { name: "Climate", icon: "mdi:thermostat", navigation_path: "climate" },
-        { name: "Security", icon: "mdi:shield-half-full", navigation_path: "security" },
-        { name: "Energy", icon: "mdi:lightning-bolt", navigation_path: "/energy" },
-      ],
-    };
+    return {};
   }
 
   setConfig(config: HomePulseCardConfig): void {
@@ -300,22 +293,30 @@ export class HomePulseCard extends LitElement {
     // usually arrives with a registry update, so this stays cheap in big homes.
     const deps = [hass.entities, hass.devices, config];
     if (!this._index || deps.some((d, i) => d !== this._indexDeps[i])) {
+      // Discover (and watch) only what a shown block uses, so the shortcuts card stays as light as it looks.
+      const sections = config.sections ?? DEFAULT_SECTIONS;
+      const uses = (...ids: SectionId[]) => ids.some((id) => sections.includes(id));
       this._index = indexHome(hass, config);
-      this._persons = discoverPersons(hass, config);
-      this._weather = discoverOne(hass, "weather", config.weather_entity);
-      this._alarm = discoverOne(hass, "alarm_control_panel", config.alarm_entity);
-      this._modeEntity = discoverModeEntity(hass, config);
-      this._calendars = todayCalendars(hass, config);
+      this._persons = uses("status", "nudges") ? discoverPersons(hass, config) : [];
+      this._weather = uses("greeting", "status") ? discoverOne(hass, "weather", config.weather_entity) : undefined;
+      this._alarm = uses("status", "alarm", "nudges") ? discoverOne(hass, "alarm_control_panel", config.alarm_entity) : undefined;
+      this._modeEntity = uses("modes") ? discoverModeEntity(hass, config) : undefined;
+      this._calendars = uses("greeting") ? todayCalendars(hass, config) : [];
       this._watched = watchedEntities(config, this._index, this._persons, [
         this._weather,
         this._alarm,
-        "sun.sun",
-        ...modeEntities(hass, { ...config, mode_entity: this._modeEntity ?? "none" }),
+        this._showGlow ? "sun.sun" : undefined,
+        ...(uses("modes") ? modeEntities(hass, { ...config, mode_entity: this._modeEntity ?? "none" }) : []),
         ...this._calendars,
-        ...todayEntities(config).map((e) => e.entity),
+        ...(uses("greeting") ? todayEntities(config).map((e) => e.entity) : []),
       ]);
       this._indexDeps = deps;
     }
+  }
+
+  /** The sun/moon corner glow belongs to the overview's sky; the shortcuts card has none. */
+  protected get _showGlow(): boolean {
+    return true;
   }
 
   protected updated(): void {
@@ -366,7 +367,7 @@ export class HomePulseCard extends LitElement {
 
     return html`
       <ha-card class=${night ? "night" : "day"}>
-        <div class="glow"></div>
+        ${this._showGlow ? html`<div class="glow"></div>` : nothing}
         <div class="content">${sections.map((s) => blocks[s]())}</div>
       </ha-card>
       ${this._popup
@@ -1027,15 +1028,81 @@ export class HomePulseCard extends LitElement {
   }
 }
 
+/**
+ * Home Pulse Shortcuts: the shortcut tiles on their own (one card, one job). It is the overview card
+ * showing only its `shortcuts` block, so tiles, badges, actions and the editor's shortcut list are shared.
+ * Flat by default: every tile looks like a native tile card in the section.
+ */
+export class HomePulseShortcutsCard extends HomePulseCard {
+  static getConfigElement() {
+    return document.createElement("home-pulse-shortcuts-card-editor");
+  }
+
+  static getStubConfig(): Partial<HomePulseCardConfig> {
+    // Navigation first; views that don't exist yet are easy to rename in the editor.
+    return {
+      shortcuts: [
+        { name: "Lights", icon: "mdi:lightbulb-group", navigation_path: "lights", badge: "lights" },
+        { name: "Climate", icon: "mdi:thermostat", navigation_path: "climate" },
+        { name: "Security", icon: "mdi:shield-half-full", navigation_path: "security", badge: "locks" },
+        { name: "Energy", icon: "mdi:lightning-bolt", navigation_path: "/energy" },
+      ],
+    };
+  }
+
+  setConfig(config: HomePulseCardConfig): void {
+    if (!config) throw new Error("Invalid configuration");
+    super.setConfig({ ...config, appearance: config.appearance ?? "flat", sections: ["shortcuts"] });
+  }
+
+  getCardSize(): number {
+    const n = this._config?.shortcuts?.length ?? 0;
+    const cols = Math.min(8, Math.max(1, Math.round(this._config?.columns ?? 4)));
+    return Math.max(1, Math.ceil(n / cols) * 2);
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 3, rows: "auto" as const };
+  }
+
+  protected get _showGlow(): boolean {
+    return false;
+  }
+
+  protected render() {
+    if (this.hass && this._config && !this._config.shortcuts?.length) {
+      return html`<ha-card class="empty-card"
+        ><div class="empty"><ha-icon icon="mdi:view-grid-outline"></ha-icon>${localize(this.hass, "shortcuts_empty")}</div></ha-card
+      >`;
+    }
+    return super.render();
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "home-pulse-shortcuts-card": HomePulseShortcutsCard;
+  }
+}
+
 if (!customElements.get("home-pulse-card")) {
   customElements.define("home-pulse-card", HomePulseCard);
+  customElements.define("home-pulse-shortcuts-card", HomePulseShortcutsCard);
   window.customCards = window.customCards || [];
-  window.customCards.push({
-    type: "home-pulse-card",
-    name: "Home Pulse Card",
-    description: "Greeting, people, weather, alarm, a whole-home pulse and shortcuts to your other views.",
-    preview: true,
-  });
+  window.customCards.push(
+    {
+      type: "home-pulse-card",
+      name: "Home Pulse Card",
+      description: "The overview for the top of your dashboard: greeting, weather, today, people, alarm, house modes and quiet home hints.",
+      preview: true,
+    },
+    {
+      type: "home-pulse-shortcuts-card",
+      name: "Home Pulse Shortcuts",
+      description: "Large shortcut tiles to your other views, with live badges. The companion of Home Pulse Card.",
+      preview: true,
+    }
+  );
   // eslint-disable-next-line no-console
   console.info(
     `%c HOME-PULSE-CARD %c v${VERSION} `,

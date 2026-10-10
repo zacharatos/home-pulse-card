@@ -2,7 +2,12 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 
-The card for the top of your Home Assistant overview, built around one job: getting you to the rest of your dashboard. Large shortcut tiles are the heart of it; above them, a greeting with the weather and today's high and low, and one line with the alarm and who's home. The card stays out of the way of your area cards: it doesn't repeat what they show room by room. It speaks up only when something needs you: a tripped leak or smoke sensor, or everyone out with a window open or the lights on. Colour is kept for what means something (a problem, something open, lights on, who's home), so the card stays calm.
+Two cards for the top of your Home Assistant overview, in one download, each with one job:
+
+- **Home Pulse Card** (`custom:home-pulse-card`): the overview. A greeting with the weather and today's high and low, a "Today" line, one line with the alarm and who's home, house modes, and quiet hints that only appear when something needs you.
+- **Home Pulse Shortcuts** (`custom:home-pulse-shortcuts-card`): large shortcut tiles that take you to the rest of your dashboard, with live badges. By default every tile looks like one of Home Assistant's own tile cards.
+
+They stay out of the way of your area cards: they don't repeat what those show room by room. It speaks up only when something needs you: a tripped leak or smoke sensor, or everyone out with a window open or the lights on. Colour is kept for what means something (a problem, something open, lights on, who's home), so the card stays calm.
 
 A soft glow in the top-left corner follows the sun: warm orange by day, cool blue at night. It is the sibling of [Area Pulse Card](https://github.com/zacharatos/area-pulse-card) (same radii, chip shape and colour rules; as the overview it gets a little more room: 16px inside instead of 12px), and it uses `ha-card`, your theme variables, the native more-info dialogs and Home Assistant's own action handler, so it sits comfortably next to the built-in cards.
 
@@ -11,16 +16,17 @@ A soft glow in the top-left corner follows the sun: warm orange by day, cool blu
 
 ## Features
 
-- **Shortcuts first.** Large tiles with an icon and a name that take you to your other views (`navigation_path: lights` stays on the current dashboard) or run any action, with tap, hold and double-tap. Rows balance themselves (7 tiles on 4 columns → 4 + 3, 5 → 3 + 2). Optional small badges: a count (`badge: lights` → how many lights are on) or any entity's state (`badge: sensor.open_tasks`).
+- **Two cards, one job each.** Put Home Pulse Card at the top and Home Pulse Shortcuts under it (or anywhere). Each has its own visual editor and its own size in a sections view. Shortcuts you already configured on Home Pulse Card keep working there.
+- **Shortcuts** (Home Pulse Shortcuts). Large tiles with an icon and a name that take you to your other views (`navigation_path: lights` stays on the current dashboard) or run any action, with tap, hold and double-tap. Rows balance themselves (7 tiles on 4 columns → 4 + 3, 5 → 3 + 2). Optional small badges: a count (`badge: lights` → how many lights are on) or any entity's state (`badge: sensor.open_tasks`).
 - **Header with a sky.** "Good evening, Timos" with today's date, and the weather on the right: icon, temperature, condition and today's high and low from the weather's own forecast (daily, twice-daily or hourly, whichever it has; nothing extra to set up). The corner glow is orange while the sun is up and blue after sunset (from `sun.sun`, or the clock without it). Your own text with `{name}` if you prefer, or centred.
 - **Today line.** One quiet line under the date answers "anything to remember?": "Dentist 17:30 · Recycling tomorrow". It reads the next event of your calendars (all of them, or the ones you pick) plus any waste-collection, date, timestamp or text sensors you add, shows today and tomorrow, and disappears when there's nothing. Times follow your HA 12/24-hour setting.
 - **House modes.** A row of buttons for the whole house: Home, Away, Night, Movie, Guest… with the current one raised and its icon in its colour. Point it at an `input_select` (an `input_select.house_mode` is found by itself) and you get one button per option, with icons guessed from the names in English or Greek. Or list modes that run a scene (the last one run is lit), a script, an `input_boolean` or any action.
 - **One status line.** The alarm as a small chip with its state colour and icon (tap for Home Assistant's own alarm dialog with its arm buttons and keypad), then the people in your home: picture or initial, green with a dot when home, dimmed with "Away" or their zone when out.
 - **Silent until it matters.** Leak, smoke, gas, CO and other safety sensors stay invisible; one that trips becomes a red line you can tap.
 - **"Nobody's home" hint.** When everyone tracked is away and a door or window is open, a lock is unlocked, lights are on, music is playing or the alarm is off, one quiet banner says so with a button per fix: *Show windows* (there's nothing to do from afar, so it lists which ones), *Lock*, *Lights off*, *Pause media*, *Arm away*. The fixes touch only what is on or open.
-- **Zero config.** People, weather, the alarm panel, the sun and the safety sensors are discovered. Shortcuts are the only thing to set up, in the visual editor or YAML.
+- **Zero config.** People, weather, the alarm panel, the sun and the safety sensors are discovered: `type: custom:home-pulse-card` alone is useful. Shortcuts are the only thing to set up, in the visual editor or YAML.
 - **More, if you want it.** Two opt-in blocks for people who like more on the card: the alarm as a panel with arm and disarm buttons, and a home "pulse" (lights on, windows open, what's playing, low batteries…) with a popup of exactly which ones. They're off by default because Area Pulse cards already show this per room.
-- **Layouts.** `card` or `flat` (no background), `default` or `compact`, and you choose which blocks show and in what order.
+- **Layouts.** `card` or `flat` (no background), `default` or `compact`, and you choose which blocks show and in what order. Home Pulse Shortcuts is `flat` by default (separate tiles, like native tile cards) or `card` (all tiles in one card).
 - **Sections-ready and fast**, with a **visual editor** on HA's own form controls and a reorderable shortcut list, in **English and Greek**.
 
 ## Installation
@@ -45,6 +51,17 @@ Minimal:
 ```yaml
 type: custom:home-pulse-card
 ```
+
+```yaml
+type: custom:home-pulse-shortcuts-card
+shortcuts:
+  - name: Lights
+    icon: mdi:lightbulb-group
+    navigation_path: lights
+    badge: lights
+```
+
+### Home Pulse Card
 
 Full example:
 
@@ -96,9 +113,18 @@ show_inactive: false
 nudges: true
 battery_threshold: 20
 exclude_entities: [light.christmas_tree]
+```
 
+### Home Pulse Shortcuts
+
+```yaml
+type: custom:home-pulse-shortcuts-card
+layout: default            # or compact
+appearance: flat           # default: separate tiles; "card" puts them all in one card
 columns: 4
 show_names: true
+battery_threshold: 20      # for badge: batteries
+exclude_entities: []       # entities the badge counts ignore
 shortcuts:
   - name: Lights
     icon: mdi:lightbulb-group
@@ -131,7 +157,7 @@ shortcuts:
       target: { entity_id: scene.movie_night }
 ```
 
-### Card options
+### Home Pulse Card options
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -156,9 +182,18 @@ shortcuts:
 | `battery_threshold` | `20` | A battery at or below this % counts as low. |
 | `exclude_entities` | – | Entities the pulse ignores. |
 | `nudges` | `true` | `false` turns the "Nobody's home" hints off (same as leaving `nudges` out of `sections`). Needs at least one tracked person. |
-| `columns` | `4` | Maximum shortcut tiles per row (1–8). Rows are balanced. |
-| `show_names` | `true` | Names under the shortcut icons; `false` for icon-only tiles. |
-| `shortcuts` | – | See below. |
+| `shortcuts`, `columns`, `show_names` | – | Still supported on Home Pulse Card (the `shortcuts` block), so existing dashboards keep working. New dashboards use Home Pulse Shortcuts. |
+
+### Home Pulse Shortcuts options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `layout` | `default` | `compact` makes the tiles smaller. |
+| `appearance` | `flat` | `flat`: separate tiles drawn like native tile cards (your theme's card fill, edge, shadow and blur). `card`: all tiles in one card. |
+| `columns` | `4` | Maximum tiles per row (1–8). Rows are balanced. |
+| `show_names` | `true` | Names under the icons; `false` for icon-only tiles. |
+| `battery_threshold`, `exclude_entities`, `alert_classes` | as above | Only affect what badges count. |
+| `shortcuts` | – | The tiles, see below. |
 
 ### Shortcuts
 

@@ -78,6 +78,11 @@ const en: Dict = {
   nudge_fix_windows: "Show windows",
   weather_range: "High {high}, low {low}",
   weather_high: "High {high}",
+  shortcuts_empty: "Add shortcuts in the card editor",
+  ed_shortcuts_own_card: "Shortcuts have their own card: add a “Home Pulse Shortcuts” card next to this one.",
+  ed_shortcuts_move: "These shortcuts keep working here. To give them their own card, add a “Home Pulse Shortcuts” card and move them there.",
+  ed_appearance_tiles: "Separate tiles (like native tile cards)",
+  ed_appearance_one_card: "All in one card",
 
   g_alerts: "Safety alerts",
   g_lights: "Lights",
@@ -243,6 +248,11 @@ const el: Dict = {
   nudge_fix_windows: "Δες τα παράθυρα",
   weather_range: "Μέγιστη {high}, ελάχιστη {low}",
   weather_high: "Μέγιστη {high}",
+  shortcuts_empty: "Πρόσθεσε συντομεύσεις από τον επεξεργαστή της κάρτας",
+  ed_shortcuts_own_card: "Οι συντομεύσεις έχουν δική τους κάρτα: πρόσθεσε μια κάρτα «Home Pulse Shortcuts» δίπλα σε αυτή.",
+  ed_shortcuts_move: "Αυτές οι συντομεύσεις συνεχίζουν να δουλεύουν εδώ. Για δική τους κάρτα, πρόσθεσε μια κάρτα «Home Pulse Shortcuts» και μετάφερέ τες εκεί.",
+  ed_appearance_tiles: "Ξεχωριστά πλακίδια (όπως οι εγγενείς κάρτες tile)",
+  ed_appearance_one_card: "Όλα σε μία κάρτα",
 
   g_alerts: "Ειδοποιήσεις ασφαλείας",
   g_lights: "Φώτα",
